@@ -53,7 +53,10 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 /* no double-tap zoom or text selection when tapping quickly */
 button, .mcell, .ycard, .tl-head, .top, .tabs, .daybar, .seg { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); }
+html, body { margin: 0; height: 100%; color: var(--ink); }
+/* html shows in any strip iOS leaves outside the app area, so match it to the tab bar */
+html { background: var(--surface); }
+body { background: var(--bg); }
 body {
   font-family: "Nunito", ui-rounded, system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 15px; line-height: 1.35; overflow: hidden; overscroll-behavior: none;
@@ -71,7 +74,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 
 .app {
   /* pinned to the screen edges: iOS home-screen apps report a too-short 100dvh, which left a gap at the bottom */
-  position: fixed; top: 0; left: 0; right: 0; bottom: calc(-1 * var(--gapfix, 0px)); display: grid;
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: grid;
   grid-template-rows: auto auto 1fr auto;
   grid-template-areas: "top" "daybar" "main" "tabs";
   padding-top: env(safe-area-inset-top);
@@ -228,7 +231,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .tabs button.on i { filter: none; transform: scale(1.12); }
 
 .fab {
-  position: fixed; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom) - var(--gapfix, 0px)); width: 54px; height: 54px; border-radius: 50%; font-size: 26px; z-index: 30;
+  position: fixed; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom)); width: 54px; height: 54px; border-radius: 50%; font-size: 26px; z-index: 30;
   background: radial-gradient(circle at 30% 30%, #ff8a80, #ff3b30); box-shadow: 0 6px 18px rgb(255 59 48 / .45); transition: transform .2s;
 }
 .fab:hover { transform: scale(1.08) rotate(-8deg); }
@@ -236,10 +239,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 @keyframes tomato { 50% { transform: scale(1.1) rotate(8deg); } }
 
 /* ============================================================ sheet */
-.scrim { position: fixed; top: 0; left: 0; right: 0; bottom: calc(-1 * var(--gapfix, 0px)); background: rgb(0 0 0 / .4); z-index: 40; animation: fade .2s; }
+.scrim { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgb(0 0 0 / .4); z-index: 40; animation: fade .2s; }
 @keyframes fade { from { opacity: 0; } }
 .sheet {
-  position: fixed; left: 0; right: 0; bottom: calc(-1 * var(--gapfix, 0px)); z-index: 41; max-height: 88dvh; overflow-y: auto;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; max-height: 88dvh; overflow-y: auto;
   background: var(--surface); border-radius: 22px 22px 0 0; padding: 8px 16px calc(18px + env(safe-area-inset-bottom));
   box-shadow: 0 -10px 40px rgb(0 0 0 / .25); animation: up .25s cubic-bezier(.2, .9, .3, 1.2);
 }
@@ -363,7 +366,7 @@ pre.email { white-space: pre-wrap; background: var(--surface-2); border-radius: 
   opacity: 0; visibility: hidden; pointer-events: none; transition: transform .3s, opacity .25s, visibility 0s .3s; }
 .toast.show { transform: translate(-50%, 0); opacity: 1; visibility: visible; transition: transform .3s, opacity .25s, visibility 0s; }
 .progress-toast {
-  position: fixed; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom) - var(--gapfix, 0px)); width: min(440px, 92vw); z-index: 55;
+  position: fixed; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom)); width: min(440px, 92vw); z-index: 55;
   transform: translate(-50%, calc(100% + 160px)); opacity: 0; transition: transform .45s cubic-bezier(.2, 1.4, .4, 1), opacity .3s; pointer-events: none;
   background: var(--surface); border-radius: 20px; padding: 12px 14px 14px; box-shadow: 0 12px 40px rgb(0 0 0 / .3); border: 2px solid var(--accent);
 }
@@ -432,8 +435,8 @@ pre.email { white-space: pre-wrap; background: var(--surface-2); border-radius: 
   .top { display: flex; align-items: center; gap: 16px; }
   .top-row { flex: 1; }
   .seg { margin-top: 0; width: 320px; }
-  .fab { bottom: calc(24px - var(--gapfix, 0px)); right: 24px; }
-  .progress-toast { bottom: calc(30px - var(--gapfix, 0px)); }
+  .fab { bottom: 24px; right: 24px; }
+  .progress-toast { bottom: 30px; }
   .sheet { left: 50%; right: auto; bottom: auto; top: 50%; transform: translate(-50%, -50%); width: 560px; border-radius: 22px; max-height: 86vh; animation: pop .25s cubic-bezier(.2, .9, .3, 1.2); }
   @keyframes pop { from { transform: translate(-50%, -46%) scale(.94); opacity: 0; } }
   .sheet .grab-zone { display: none; }
@@ -444,7 +447,7 @@ pre.email { white-space: pre-wrap; background: var(--surface-2); border-radius: 
   .top-row { flex: 1; } .seg { margin-top: 0; width: 300px; }
   .tabs button { flex-direction: row; gap: 6px; padding: 3px 0; } .tabs button i { font-size: 16px; }
   .daybar { padding-top: 4px; padding-bottom: 4px; }
-  .fab { bottom: calc(60px + env(safe-area-inset-bottom) - var(--gapfix, 0px)); width: 46px; height: 46px; font-size: 22px; }
+  .fab { bottom: calc(60px + env(safe-area-inset-bottom)); width: 46px; height: 46px; font-size: 22px; }
 }
 
 /* time off: dates side by side, reason underneath (iPhone date fields won't shrink in a 3-across row) */

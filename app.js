@@ -1637,21 +1637,12 @@ document.addEventListener("change", (e) => {
   if (ui.page === "settings") onSettingsChange(e);
 });
 // hold a counter to subtract one
-/* iPhone home-screen apps report a viewport that's short by the status-bar height, leaving a strip at the bottom.
-   Measure the shortfall and let the layout reach the real bottom of the screen. */
-function fixIosGap() {
-  let gap = 0;
-  if (navigator.standalone === true) {
-    const landscape = matchMedia("(orientation: landscape)").matches;
-    const full = landscape ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
-    gap = Math.round(full - innerHeight);
-    if (gap < 0 || gap > 120) gap = 0;
-  }
-  document.documentElement.style.setProperty("--gapfix", `${gap}px`);
-}
-fixIosGap();
-addEventListener("resize", fixIosGap);
-addEventListener("orientationchange", () => setTimeout(fixIosGap, 300));
+/* After the on-screen keyboard closes, iOS can leave a home-screen app nudged out of place.
+   Snap the page back whenever a text field loses focus or the visible area changes size. */
+const resetViewport = () => { if (!/input|textarea|select/i.test(document.activeElement?.tagName || "")) window.scrollTo(0, 0); };
+document.addEventListener("focusout", () => setTimeout(resetViewport, 60));
+window.visualViewport?.addEventListener("resize", () => setTimeout(resetViewport, 60));
+addEventListener("orientationchange", () => setTimeout(resetViewport, 300));
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeSheet();
   if ($("#sheet").hidden && ui.page === "calendar" && (ui.view === "day" || ui.view === "week") && !/input|select|textarea/i.test(e.target.tagName) && ["+", "=", "-", "_", "0"].includes(e.key)) {
