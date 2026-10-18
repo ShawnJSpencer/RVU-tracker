@@ -1420,6 +1420,14 @@ document.addEventListener("click", (e) => {
   const rg = t.closest("[data-rgroup]"); if (rg) { rep.group = rg.dataset.rgroup; if ((rep.group === "day" || rep.group === "week") && rep.year === "all") rep.year = String(new Date().getFullYear()); render(); return; }
   if (ui.page === "settings" && bindSettings(e)) return;
 });
+// Safari can still zoom on a fast double tap; block it everywhere except text fields
+document.addEventListener("dblclick", (e) => { if (!/input|textarea|select/i.test(e.target.tagName)) e.preventDefault(); }, { passive: false });
+let lastTouchEnd = 0;
+document.addEventListener("touchend", (e) => {
+  const now = Date.now();
+  if (now - lastTouchEnd < 350 && e.target.closest("button, .mcell, .ycard, [data-goday], [data-nav]")) { e.preventDefault(); e.target.closest("button, .mcell, .ycard, [data-goday], [data-nav]").click(); }
+  lastTouchEnd = now;
+}, { passive: false });
 document.addEventListener("change", (e) => {
   if (e.target.id === "rYear") { rep.year = e.target.value; render(); return; }
   if (ui.page === "settings") onSettingsChange(e);

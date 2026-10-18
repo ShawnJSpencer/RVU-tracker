@@ -50,7 +50,9 @@
 }
 
 /* ============================================================ base */
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+/* no double-tap zoom or text selection when tapping quickly */
+button, .mcell, .ycard, .tl-head, .top, .tabs, .daybar, .seg { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); }
 body {
   font-family: "Nunito", ui-rounded, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -60,6 +62,7 @@ body {
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; border: 0; background: none; padding: 0; }
 input, select, textarea {
+  font-size: 16px; /* 16px+ stops iPhone from zooming in when a field is tapped */
   background: var(--surface-2); border: 1.5px solid var(--line); border-radius: 12px; padding: 9px 11px; width: 100%;
 }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
