@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Screen check</title>
+<style>
+  html, body { margin: 0; background: #ffe7a8; color: #111; font: 15px/1.35 -apple-system, system-ui, sans-serif; }
+  /* a ruler in normal page flow: wherever its numbers stop is where iOS stops drawing the page */
+  .ruler { position: absolute; top: 0; left: 0; width: 100%; height: 3000px;
+    background: repeating-linear-gradient(#ffe7a8 0 49px, #c98a00 49px 50px); }
+  .tick { position: absolute; right: 8px; font: 700 12px ui-monospace, Menlo, monospace; color: #7a5200; transform: translateY(-100%); }
+  .panel { position: relative; z-index: 2; margin: calc(env(safe-area-inset-top) + 8px) 10px 0; background: #fff; border-radius: 14px; padding: 12px; box-shadow: 0 4px 16px rgb(0 0 0 / .2); }
+  .panel h1 { font-size: 18px; margin: 0 0 6px; }
+  .panel pre { margin: 0; font: 12.5px/1.45 ui-monospace, Menlo, monospace; white-space: pre-wrap; }
+  .panel a { display: inline-block; margin-top: 10px; padding: 8px 14px; border-radius: 10px; background: #16537e; color: #fff; font-weight: 700; text-decoration: none; }
+  .fixedbar { position: fixed; left: 0; right: 0; bottom: 0; height: 26px; background: rgb(220 30 60 / .85); color: #fff; font: 700 12px system-ui; display: grid; place-items: center; z-index: 3; }
+  .screenbar { position: absolute; left: 0; right: 0; height: 26px; background: rgb(20 90 220 / .85); color: #fff; font: 700 12px system-ui; display: grid; place-items: center; z-index: 3; }
+  #probe { position: fixed; top: 0; left: 0; width: 0; visibility: hidden;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  .u { position: absolute; top: 0; left: 0; width: 0; visibility: hidden; }
+</style>
+</head>
+<body>
+<div class="ruler" id="ruler"></div>
+<div class="panel">
+  <h1>Screen check</h1>
+  <pre id="out">measuring…</pre>
+  <a href="./">← Back to RVU Tracker</a>
+</div>
+<div class="fixedbar">RED = pinned to bottom (like the tab bar)</div>
+<div class="screenbar" id="screenbar">BLUE = true bottom of the screen</div>
+<div id="probe"></div>
+<div class="u" id="vh" style="height:100vh"></div>
+<div class="u" id="dvh" style="height:100dvh"></div>
+<div class="u" id="lvh" style="height:100lvh"></div>
+<div class="u" id="svh" style="height:100svh"></div>
+<div class="u" id="pct" style="position:fixed;height:100%"></div>
+<script>
+  const ruler = document.getElementById("ruler");
+  for (let y = 50; y < 3000; y += 50) { const t = document.createElement("div"); t.className = "tick"; t.style.top = y + "px"; t.textContent = y; ruler.appendChild(t); }
+  function measure() {
+    const cs = getComputedStyle(document.getElementById("probe"));
+    const h = (id) => Math.round(document.getElementById(id).getBoundingClientRect().height);
+    const landscape = matchMedia("(orientation: landscape)").matches;
+    const screenH = landscape ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
+    document.getElementById("screenbar").style.top = (screenH - 26) + "px";
+    const vv = window.visualViewport;
+    const iosv = (navigator.userAgent.match(/OS (\d+[_\d]*) like Mac/) || [])[1];
+    document.getElementById("out").textContent = [
+      `iOS ${iosv ? iosv.replace(/_/g, ".") : "?"} · ${navigator.standalone ? "home-screen app" : "browser"} · ${matchMedia("(display-mode: standalone)").matches ? "standalone" : "not standalone"}`,
+      `screen        ${screen.width} × ${screen.height}  (dpr ${devicePixelRatio})`,
+      `innerHeight   ${innerHeight}   outerHeight ${outerHeight}`,
+      `clientHeight  ${document.documentElement.clientHeight}`,
+      `visualViewport ${vv ? Math.round(vv.height) + " (top " + Math.round(vv.offsetTop) + ")" : "n/a"}`,
+      `100vh ${h("vh")}  dvh ${h("dvh")}  lvh ${h("lvh")}  svh ${h("svh")}  fixed% ${h("pct")}`,
+      `safe area  top ${cs.paddingTop}  bottom ${cs.paddingBottom}`,
+      `scrollY ${Math.round(scrollY)}`,
+    ].join("\n");
+  }
+  measure();
+  addEventListener("resize", measure);
+  addEventListener("orientationchange", () => setTimeout(measure, 300));
+  setTimeout(measure, 800);
+</script>
+</body>
+</html>

@@ -1362,7 +1362,7 @@ function renderSettings() {
     </div>
 
     <div class="card"><h3 style="margin-top:0">💾 Data</h3>
-      <div class="row"><button class="btn sm" id="exportBtn">Download a backup</button>
+      <div class="row"><a class="btn sm" href="diag.html" style="text-decoration:none">🩺 Screen check</a><button class="btn sm" id="exportBtn">Download a backup</button>
       <label class="btn sm">Restore a backup<input type="file" id="importFile" accept="application/json" hidden></label></div>
       <p class="help">History: ${Object.keys(hist.days).length} imported days${Object.keys(hist.days).length ? "" : " — add your token above to load them"}.</p>
     </div>
