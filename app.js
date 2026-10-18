@@ -34,6 +34,7 @@ function minZoomFor(base) {
   return Math.max(0.05, avail / ((range.end - range.start) * base));
 }
 let pinchState = null, pinchEndedAt = 0;
+const swipe = { active: false, axis: null, x0: 0, y0: 0, t0: 0, dx: 0, el: null }; // left/right swipe between days
 
 /* ================================================================ utils */
 const $ = (s, el = document) => el.querySelector(s);
@@ -376,11 +377,11 @@ function bindTimeline(keepScroll) {
 
   /* elastic pull: past the top opens earlier slots, past the bottom opens later ones */
   const indTop = $(".pull-ind.top", sc), indBot = $(".pull-ind.bottom", sc);
-  let ty0 = null, pull = 0, edge = null;
+  let ty0 = null, tx0 = 0, pull = 0, edge = null;
   const THRESH = 70;
   sc.addEventListener("touchstart", (e) => {
     if (drag.active) return;
-    ty0 = e.touches[0].clientY; pull = 0;
+    ty0 = e.touches[0].clientY; tx0 = e.touches[0].clientX; pull = 0;
     // both can be true when the whole day fits on screen; the drag direction picks one
     edge = { top: sc.scrollTop <= 0, bottom: sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 1 };
   }, { passive: true });
@@ -388,6 +389,8 @@ function bindTimeline(keepScroll) {
     if (drag.active) { e.preventDefault(); return; }
     if (pinchState || e.touches.length > 1 || ty0 == null || !edge) return;
     const dy = e.touches[0].clientY - ty0;
+    if (swipe.axis === "x") return; // sideways swipe changes the day instead
+    if (typeof edge === "object" && (Math.abs(dy) < 10 || Math.abs(e.touches[0].clientX - tx0) > Math.abs(dy))) return;
     if (typeof edge === "object") { edge = dy > 0 && edge.top ? "top" : dy < 0 && edge.bottom ? "bottom" : edge.top || edge.bottom ? edge : null; if (typeof edge === "object") return; }
     if ((edge === "top" && dy > 0) || (edge === "bottom" && dy < 0)) {
       pull = dy * 0.45;
@@ -1579,10 +1582,13 @@ document.addEventListener("click", (e) => {
 // Safari can still zoom on a fast double tap; block it everywhere except text fields
 document.addEventListener("dblclick", (e) => { if (!/input|textarea|select/i.test(e.target.tagName)) e.preventDefault(); }, { passive: false });
 document.addEventListener("gesturestart", (e) => { if (e.target.closest?.(".tl-scroll")) e.preventDefault(); }, { passive: false });
-let lastTouchEnd = 0;
+let lastTouchEnd = 0, tapStart = null;
+document.addEventListener("touchstart", (e) => { const t = e.touches[0]; tapStart = e.touches.length === 1 ? [t.clientX, t.clientY] : null; }, { passive: true });
 document.addEventListener("touchend", (e) => {
   const now = Date.now();
-  if (e.touches.length || pinchState || now - pinchEndedAt < 400) { lastTouchEnd = 0; return; }
+  const ct = e.changedTouches[0];
+  const moved = !tapStart || !ct || Math.hypot(ct.clientX - tapStart[0], ct.clientY - tapStart[1]) > 10;
+  if (e.touches.length || pinchState || now - pinchEndedAt < 400 || moved) { lastTouchEnd = 0; return; }
   if (now - lastTouchEnd < 350 && e.target.closest("button, .mcell, .ycard, [data-goday], [data-nav]")) { e.preventDefault(); e.target.closest("button, .mcell, .ycard, [data-goday], [data-nav]").click(); }
   lastTouchEnd = now;
 }, { passive: false });
@@ -1612,9 +1618,61 @@ document.addEventListener("keydown", (e) => {
   }
 });
 // swipe left/right on month & year to change period
-let sx = null;
-document.addEventListener("touchstart", (e) => { sx = e.target.closest(".month, .year, .hist-day") ? e.touches[0].clientX : null; }, { passive: true });
-document.addEventListener("touchend", (e) => { if (sx == null) return; const dx = e.changedTouches[0].clientX - sx; if (Math.abs(dx) > 70) nav(dx < 0 ? 1 : -1); sx = null; });
+/* Swipe left/right on the calendar: next/previous day (week, month or year in those views).
+   The page follows your finger, then slides out while the new one slides in. */
+document.addEventListener("touchstart", (e) => {
+  swipe.active = false; swipe.axis = null;
+  if (e.touches.length !== 1 || ui.page !== "calendar" || !$("#sheet").hidden || drag.active || pinchState) return;
+  if (!e.target.closest("#main") || e.target.closest("input, select, textarea")) return;
+  const t = e.touches[0];
+  Object.assign(swipe, { active: true, axis: null, x0: t.clientX, y0: t.clientY, t0: performance.now(), dx: 0, samples: [], el: $("#main").firstElementChild });
+}, { passive: true });
+document.addEventListener("touchmove", (e) => {
+  if (!swipe.active) return;
+  if (e.touches.length > 1 || pinchState || drag.active) { snapSwipeBack(); return; }
+  const t = e.touches[0], dx = t.clientX - swipe.x0, dy = t.clientY - swipe.y0;
+  if (!swipe.axis) {
+    if (Math.hypot(dx, dy) < 10) return;
+    swipe.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? "x" : "y";
+    if (swipe.axis === "y") { swipe.active = false; return; }
+  }
+  if (e.cancelable) e.preventDefault();
+  swipe.dx = dx;
+  const now = performance.now();
+  swipe.samples.push([now, dx]); while (swipe.samples.length > 2 && now - swipe.samples[0][0] > 100) swipe.samples.shift();
+  if (swipe.el) { swipe.el.style.transition = "none"; swipe.el.style.transform = `translateX(${dx}px)`; swipe.el.style.opacity = String(1 - Math.min(0.45, Math.abs(dx) / innerWidth)); }
+}, { passive: false });
+function snapSwipeBack() {
+  const el = swipe.el;
+  swipe.active = false; swipe.axis = null;
+  if (!el) return;
+  el.style.transition = "transform .25s cubic-bezier(.2,1.2,.4,1), opacity .2s";
+  el.style.transform = ""; el.style.opacity = "";
+}
+const swipeEnd = () => {
+  if (!swipe.active || swipe.axis !== "x") { swipe.active = false; swipe.axis = null; return; }
+  const dx = swipe.dx, s0 = swipe.samples[0], s1 = swipe.samples[swipe.samples.length - 1];
+  const v = s0 && s1 ? (s1[1] - s0[1]) / Math.max(1, s1[0] - s0[0]) : 0;
+  if (!(Math.abs(dx) > 80 || (Math.abs(v) > 0.4 && Math.abs(dx) > 30))) { snapSwipeBack(); return; }
+  const dir = dx < 0 ? 1 : -1, el = swipe.el, W = innerWidth;
+  swipe.active = false; swipe.axis = null;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const go = () => {
+    nav(dir); buzz(8);
+    const nel = $("#main").firstElementChild;
+    if (!nel || reduce) return;
+    nel.style.transition = "none"; nel.style.transform = `translateX(${dir * W * 0.35}px)`; nel.style.opacity = "0";
+    void nel.offsetWidth;
+    nel.style.transition = "transform .22s cubic-bezier(.2,.9,.3,1), opacity .18s";
+    nel.style.transform = ""; nel.style.opacity = "";
+  };
+  if (!el || reduce) { go(); return; }
+  el.style.transition = "transform .14s ease-in, opacity .14s";
+  el.style.transform = `translateX(${-dir * W}px)`; el.style.opacity = "0";
+  setTimeout(go, 130);
+};
+document.addEventListener("touchend", swipeEnd);
+document.addEventListener("touchcancel", () => snapSwipeBack());
 
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { syncNow(); tick(); if (todayStr() !== lastDay) { lastDay = todayStr(); freezePast(); ui.date = lastDay; render(); } } });
 addEventListener("online", () => syncNow());
