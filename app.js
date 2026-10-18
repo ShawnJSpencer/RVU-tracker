@@ -115,7 +115,7 @@ function applyTheme() {
 }
 
 /* ================================================================ routing & header */
-function go(page) { ui.page = page; persistUi(); closeSheet(); render(); }
+function go(page) { closeCountPop(); ui.page = page; persistUi(); closeSheet(); render(); }
 function nav(dir) {
   if (dir === "today") { ui.date = todayStr(); render(); scrollToNow(); return; }
   const n = Number(dir), d = C.parseYmd(ui.date);
@@ -167,6 +167,7 @@ function render() {
 /* ================================================================ day bar */
 function renderDaybar() {
   const bar = $("#daybar");
+  if (!bar.dataset.popBound) { bar.dataset.popBound = "1"; bar.addEventListener("scroll", closeCountPop, { passive: true }); }
   if (ui.page !== "calendar") { bar.hidden = true; return; }
   bar.hidden = false;
   let dates;
@@ -192,20 +193,57 @@ function renderDaybar() {
   if (ui.view === "day" && !isHistDate(ui.date)) {
     const c = state.counters[ui.date] || {};
     html += `
-      <button class="counter" data-count="msg" title="Tap +1, hold −1">💬 <b>${c.msg || 0}</b></button>
-      <button class="counter" data-count="rx" title="Tap +1, hold −1">💊 <b>${c.rx || 0}</b></button>
-      <button class="counter" data-count="call" title="Tap +1, hold −1">📞 <b>${c.call || 0}</b></button>
+      <button class="counter" data-count="msg" title="Tap to add or clear">💬 <b>${c.msg || 0}</b></button>
+      <button class="counter" data-count="rx" title="Tap to add or clear">💊 <b>${c.rx || 0}</b></button>
+      <button class="counter" data-count="call" title="Tap to add or clear">📞 <b>${c.call || 0}</b></button>
       <button class="counter" data-daymenu="1" title="Day options">⋯</button>`;
   }
   bar.innerHTML = html;
 }
+// + = one came in, − = one handled (with a tiny celebration). Received/handled totals feed the Habits tab.
 function bumpCounter(key, delta) {
   const c = (state.counters[ui.date] ||= {});
+  if (delta < 0 && !(c[key] > 0)) return false;
   c[key] = Math.max(0, (c[key] || 0) + delta);
+  if (delta > 0) c[key + "In"] = (c[key + "In"] || 0) + 1;
+  else c[key + "Done"] = (c[key + "Done"] || 0) + 1;
   c.updatedAt = Date.now();
   changed(); renderDaybar();
   const el = $(`[data-count="${key}"]`); el?.classList.add("bump");
   buzz(10);
+  return true;
+}
+const COUNT_NAMES = { msg: "messages", rx: "Rx requests", call: "calls" };
+let countPopTimer;
+function closeCountPop() { $(".count-pop")?.remove(); $$(".counter.open").forEach((b) => b.classList.remove("open")); clearTimeout(countPopTimer); }
+function openCountPop(key) {
+  const already = $(`.count-pop[data-for="${key}"]`);
+  closeCountPop();
+  if (already) return;
+  const btn = $(`[data-count="${key}"]`); if (!btn) return;
+  btn.classList.add("open");
+  const pop = document.createElement("div");
+  pop.className = "count-pop"; pop.dataset.for = key;
+  const val = () => state.counters[ui.date]?.[key] || 0;
+  pop.innerHTML = `<button class="minus" aria-label="Handled one">−</button><b>${val()}</b><button class="plus" aria-label="Add one">+</button><small>${COUNT_NAMES[key]}</small>`;
+  document.body.appendChild(pop);
+  const place = () => {
+    const r = btn.getBoundingClientRect(), w = pop.offsetWidth;
+    const left = Math.min(innerWidth - w - 8, Math.max(8, r.left + r.width / 2 - w / 2));
+    pop.style.left = `${left}px`; pop.style.top = `${r.bottom + 10}px`;
+    pop.style.setProperty("--arrow", `${r.left + r.width / 2 - left}px`);
+  };
+  place();
+  const refresh = () => { $("b", pop).textContent = val(); const b2 = $(`[data-count="${key}"]`); b2?.classList.add("open"); };
+  const keepOpen = () => { clearTimeout(countPopTimer); countPopTimer = setTimeout(closeCountPop, 5000); };
+  $(".plus", pop).onclick = (e) => { e.stopPropagation(); bumpCounter(key, 1); refresh(); keepOpen(); };
+  $(".minus", pop).onclick = (e) => {
+    e.stopPropagation();
+    if (bumpCounter(key, -1)) { const r = e.currentTarget.getBoundingClientRect(); FX.celebrateTiny(r.left + r.width / 2, r.top + r.height / 2); }
+    else toast(`No ${COUNT_NAMES[key]} waiting`, 1200);
+    refresh(); keepOpen();
+  };
+  keepOpen();
 }
 
 /* ================================================================ timeline (day / week) */
@@ -1110,13 +1148,13 @@ function renderInsights() {
   const last30 = Array.from({ length: 30 }, (_, i) => C.addDays(todayStr(), -29 + i));
   const tally = last30.map((d) => state.counters[d] || {});
   const sum = (k) => tally.reduce((t, c) => t + (c[k] || 0), 0);
-  const tallyDays = tally.filter((c) => (c.msg || 0) + (c.rx || 0) + (c.call || 0) > 0).length;
+  const inOf = (c, k) => c[k + "In"] ?? c[k] ?? 0; // older days only stored the count
+  const sumIn = (k) => tally.reduce((t, c) => t + inOf(c, k), 0);
+  const tallyDays = tally.filter((c) => inOf(c, "msg") + inOf(c, "rx") + inOf(c, "call") > 0).length;
   body += `<div class="card"><h3 style="margin-top:0">In-basket tally · last 30 days</h3>
-    ${tallyDays ? `<div class="kpis"><div class="kpi"><small>💬 Messages</small><b>${sum("msg")}</b><em>${r1(sum("msg") / tallyDays)}/day</em></div>
-    <div class="kpi"><small>💊 Rx requests</small><b>${sum("rx")}</b><em>${r1(sum("rx") / tallyDays)}/day</em></div>
-    <div class="kpi"><small>📞 Calls</small><b>${sum("call")}</b><em>${r1(sum("call") / tallyDays)}/day</em></div></div>
-    ${barChart(tally.map((c) => (c.msg || 0) + (c.rx || 0) + (c.call || 0)), last30.map((d) => String(C.parseYmd(d).getDate())), { color: "var(--apd)", fmt: (v) => v })}`
-    : `<p class="muted">Tap 💬 💊 📞 in the Day view each time one comes in (hold to undo). Totals show up here.</p>`}</div>`;
+    ${tallyDays ? `<div class="kpis">${[["msg", "💬 Messages"], ["rx", "💊 Rx requests"], ["call", "📞 Calls"]].map(([k, l]) => `<div class="kpi"><small>${l}</small><b>${sumIn(k)}</b><em>${r1(sumIn(k) / tallyDays)}/day · ${sum(k + "Done")} handled</em></div>`).join("")}</div>
+    ${barChart(tally.map((c) => inOf(c, "msg") + inOf(c, "rx") + inOf(c, "call")), last30.map((d) => String(C.parseYmd(d).getDate())), { color: "var(--apd)", fmt: (v) => v })}`
+    : `<p class="muted">Tap 💬 💊 📞 in the Day view: + when one comes in, − when you've handled it. Totals show up here.</p>`}</div>`;
   const pomo = load(K.pomo, { log: [] });
   const wk = (pomo.log || []).filter((x) => x.d >= C.weekStart(todayStr()));
   body += `<div class="card"><h3 style="margin-top:0">🍅 Focus sessions</h3><p>${wk.length} this week · ${(pomo.log || []).length} total · ${wk.reduce((t, x) => t + (x.notes || 0), 0)} notes closed during sessions this week</p></div>`;
@@ -1265,12 +1303,12 @@ function renderSettings() {
 
     <div class="card"><h3 style="margin-top:0">🏖️ Time off</h3>
       ${upcomingOff.length ? upcomingOff.map(([d, x]) => `<div class="row" style="justify-content:space-between;padding:4px 0"><span><b>${dateShort(d)}</b> · ${esc(x.offLabel || "Day off")}</span><button class="btn sm" data-unoff="${d}">Remove</button></div>`).join("") : `<p class="muted">No upcoming days off.</p>`}
-      <div class="row" style="margin-top:8px">
-        <div class="field grow"><label>From</label><input type="date" id="offFrom" value="${todayStr()}"></div>
-        <div class="field grow"><label>Through</label><input type="date" id="offTo" value="${todayStr()}"></div>
-        <div class="field grow"><label>Reason</label><select id="offLabel">${["Vacation", "Holiday", "Sick", "Conference", "Day off"].map((l) => `<option>${l}</option>`).join("")}</select></div>
+      <div class="off-grid">
+        <div class="field"><label>From</label><input type="date" id="offFrom" value="${todayStr()}"></div>
+        <div class="field"><label>Through</label><input type="date" id="offTo" value="${todayStr()}"></div>
+        <div class="field full"><label>Reason</label><select id="offLabel">${["Vacation", "Holiday", "Sick", "Conference", "Day off"].map((l) => `<option>${l}</option>`).join("")}</select></div>
       </div>
-      <button class="btn primary sm" id="offAdd">Mark off</button>
+      <button class="btn primary sm" id="offAdd" style="margin-top:10px">Mark off</button>
       <p class="help">Weekends are skipped when you mark a range. Days off don't count as working days in reports.</p>
     </div>
 
@@ -1567,7 +1605,9 @@ document.addEventListener("click", (e) => {
   if (t.closest("#pomoFab") || t.closest("#pomoPill")) { openPomo(); return; }
   const ext = t.closest("[data-extend]"); if (ext) { extendRange(Number(ext.dataset.extend)); return; }
   if (t.closest("[data-daymenu]")) { openDayMenu(ui.date); return; }
-  const cnt = t.closest("[data-count]"); if (cnt) { if (!cnt.dataset.held) bumpCounter(cnt.dataset.count, 1); delete cnt.dataset.held; return; }
+  if (t.closest(".count-pop")) return;
+  const cnt = t.closest("[data-count]"); if (cnt) { openCountPop(cnt.dataset.count); return; }
+  if ($(".count-pop")) closeCountPop();
   const gd = t.closest("#main [data-goday]"); if (gd && ui.page === "calendar" && !t.closest(".tl-inner")) { ui.date = gd.dataset.goday; ui.view = "day"; persistUi(); render(); return; }
   const gm = t.closest("[data-gomonth]"); if (gm) { ui.date = gm.dataset.gomonth; ui.view = "month"; persistUi(); render(); return; }
   const hf = t.closest("[data-histfill]"); if (hf) { const d = hf.dataset.histfill; openPatientSheet(d, { id: uid(d), type: "FU", start: 720, dur: 0, status: "scheduled", histFill: true }, hf); return; }
@@ -1597,13 +1637,21 @@ document.addEventListener("change", (e) => {
   if (ui.page === "settings") onSettingsChange(e);
 });
 // hold a counter to subtract one
-let holdTimer;
-document.addEventListener("pointerdown", (e) => {
-  const cnt = e.target.closest("[data-count]");
-  if (!cnt) return;
-  holdTimer = setTimeout(() => { cnt.dataset.held = "1"; bumpCounter(cnt.dataset.count, -1); toast("−1"); }, 550);
-});
-document.addEventListener("pointerup", () => clearTimeout(holdTimer));
+/* iPhone home-screen apps report a viewport that's short by the status-bar height, leaving a strip at the bottom.
+   Measure the shortfall and let the layout reach the real bottom of the screen. */
+function fixIosGap() {
+  let gap = 0;
+  if (navigator.standalone === true) {
+    const landscape = matchMedia("(orientation: landscape)").matches;
+    const full = landscape ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
+    gap = Math.round(full - innerHeight);
+    if (gap < 0 || gap > 120) gap = 0;
+  }
+  document.documentElement.style.setProperty("--gapfix", `${gap}px`);
+}
+fixIosGap();
+addEventListener("resize", fixIosGap);
+addEventListener("orientationchange", () => setTimeout(fixIosGap, 300));
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeSheet();
   if ($("#sheet").hidden && ui.page === "calendar" && (ui.view === "day" || ui.view === "week") && !/input|select|textarea/i.test(e.target.tagName) && ["+", "=", "-", "_", "0"].includes(e.key)) {

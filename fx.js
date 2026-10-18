@@ -166,3 +166,20 @@ export function celebrateDay() {
 }
 export function celebrate(name) { ensure(); (SMALL[name] || BIG[name])?.(innerWidth / 2, innerHeight / 2); }
 export const fxNames = () => ({ small: Object.keys(SMALL), big: Object.keys(BIG) });
+
+/* tiny (each inbox item handled): smaller than a note celebration */
+const TINY = {
+  sparkle: (x, y) => burst(x, y, 12, { shape: "star", s0: 5, s1: 9, speed: 4, lift: 2, ay: 0.08, max: 40 }),
+  pop: (x, y) => burst(x, y, 14, { shape: "circle", s0: 3, s1: 6, speed: 4.5, lift: 2, max: 36 }),
+  emoji: (x, y) => add({ x, y: y - 10, vx: 0, vy: -2.2, ay: 0.02, drag: 0.99, size: 26, shape: "emoji", emoji: pick(["✅", "👍", "✨", "🙌", "😎", "💪", "🎯"]), vr: 0, rot: 0, max: 50 }),
+  ring: (x, y) => add({ x, y, shape: "ring", size: 70, ay: 0, vr: 0, max: 26, color: pick(palette) }),
+};
+let lastTiny = "";
+export function celebrateTiny(x = innerWidth / 2, y = innerHeight / 2) {
+  ensure();
+  vibrate(12);
+  if (reduced()) return;
+  let k; do k = pick(Object.keys(TINY)); while (k === lastTiny);
+  lastTiny = k; TINY[k](x, y);
+  if (Math.random() < 0.5) TINY.sparkle(x, y);
+}
