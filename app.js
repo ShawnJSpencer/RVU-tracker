@@ -605,7 +605,8 @@ function renderYear() {
 let sheetOnClose = null;
 function openSheet(html, onClose) {
   const sh = $("#sheet");
-  sh.innerHTML = `<div class="grab"></div>${html}`;
+  sh.innerHTML = `<div class="grab-zone" aria-label="Swipe down to close"><div class="grab"></div></div>${html}`;
+  sh.style.transform = ""; sh.style.transition = ""; $("#scrim").style.opacity = "";
   sh.hidden = false; $("#scrim").hidden = false;
   sheetOnClose = onClose || null;
   sh.scrollTop = 0;
@@ -613,8 +614,63 @@ function openSheet(html, onClose) {
 function closeSheet() {
   if ($("#sheet").hidden) return;
   $("#sheet").hidden = true; $("#scrim").hidden = true;
+  $("#sheet").style.transform = ""; $("#sheet").style.transition = ""; $("#scrim").style.opacity = "";
   const cb = sheetOnClose; sheetOnClose = null; cb?.();
 }
+
+/* Swipe the sheet down to close it: drag the handle, or drag down anywhere while the sheet is scrolled to the top. */
+(() => {
+  const sh = $("#sheet"), scrim = $("#scrim");
+  let y0 = 0, x0 = 0, t0 = 0, dy = 0, fromGrab = false, dragging = false, armed = false, samples = [];
+  const isBottomSheet = () => innerWidth < 900;
+  sh.addEventListener("touchstart", (e) => {
+    if (!isBottomSheet() || e.touches.length > 1) { armed = false; return; }
+    const t = e.touches[0];
+    fromGrab = !!e.target.closest(".grab-zone");
+    armed = fromGrab || (sh.scrollTop <= 0 && !e.target.closest("input, textarea, select"));
+    y0 = t.clientY; x0 = t.clientX; t0 = performance.now(); dy = 0; dragging = false; samples = [];
+  }, { passive: true });
+  sh.addEventListener("touchmove", (e) => {
+    if (!armed) return;
+    const t = e.touches[0], d = t.clientY - y0, dx = t.clientX - x0;
+    if (!dragging) {
+      if (d > 6 && Math.abs(d) > Math.abs(dx) && (fromGrab || sh.scrollTop <= 0)) dragging = true;
+      else if (d < -6 && !fromGrab) { armed = false; return; }
+      else return;
+    }
+    if (e.cancelable) e.preventDefault();
+    dy = Math.max(0, t.clientY - y0);
+    const now = performance.now();
+    samples.push([now, dy]); while (samples.length > 2 && now - samples[0][0] > 100) samples.shift();
+    sh.style.transition = "none";
+    sh.style.transform = `translateY(${dy}px)`;
+    scrim.style.opacity = String(Math.max(0.15, 1 - dy / (sh.offsetHeight || 600)));
+  }, { passive: false });
+  const end = () => {
+    if (!armed) return;
+    armed = false;
+    if (!dragging) {
+      if (fromGrab && performance.now() - t0 < 300) closeSheet(); // a quick tap on the handle closes too
+      return;
+    }
+    dragging = false;
+    // speed over the last ~100 ms, so a quick flick closes it even if it's short
+    const [ta, ya] = samples[0] || [t0, 0], [tb, yb] = samples[samples.length - 1] || [performance.now(), dy];
+    const v = (yb - ya) / Math.max(1, tb - ta); // px per ms
+    if (dy > 110 || (v > 0.45 && dy > 30)) {
+      sh.style.transition = "transform .22s cubic-bezier(.4,0,1,1)";
+      sh.style.transform = "translateY(105%)";
+      scrim.style.transition = "opacity .22s"; scrim.style.opacity = "0";
+      setTimeout(() => { closeSheet(); scrim.style.transition = ""; }, 220);
+    } else {
+      sh.style.transition = "transform .25s cubic-bezier(.2,1.2,.4,1)";
+      sh.style.transform = "translateY(0)";
+      scrim.style.opacity = "";
+    }
+  };
+  sh.addEventListener("touchend", end);
+  sh.addEventListener("touchcancel", end);
+})();
 
 // ---- add sheet
 function openAddSheet(date, minute) {

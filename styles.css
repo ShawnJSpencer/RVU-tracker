@@ -243,7 +243,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
   box-shadow: 0 -10px 40px rgb(0 0 0 / .25); animation: up .25s cubic-bezier(.2, .9, .3, 1.2);
 }
 @keyframes up { from { transform: translateY(40%); opacity: 0; } }
-.sheet .grab { width: 44px; height: 5px; border-radius: 9px; background: var(--line); margin: 2px auto 10px; }
+.sheet .grab-zone { position: sticky; top: -8px; z-index: 2; margin: -8px -16px 4px; padding: 12px 0 14px; background: var(--surface); cursor: grab; touch-action: none; }
+.sheet .grab { width: 48px; height: 6px; border-radius: 9px; background: var(--ink-soft); opacity: .45; margin: 0 auto; }
 .sheet h3 { margin: 0 0 4px; font-family: "Fredoka", "Avenir Next", "Segoe UI", Roboto, Arial, sans-serif; font-weight: 600; font-size: 20px; }
 .sheet .sub { color: var(--ink-soft); font-weight: 700; margin-bottom: 12px; }
 .sheet section { margin: 14px 0; }
@@ -434,7 +435,7 @@ pre.email { white-space: pre-wrap; background: var(--surface-2); border-radius: 
   .progress-toast { bottom: 30px; }
   .sheet { left: 50%; right: auto; bottom: auto; top: 50%; transform: translate(-50%, -50%); width: 560px; border-radius: 22px; max-height: 86vh; animation: pop .25s cubic-bezier(.2, .9, .3, 1.2); }
   @keyframes pop { from { transform: translate(-50%, -46%) scale(.94); opacity: 0; } }
-  .sheet .grab { display: none; }
+  .sheet .grab-zone { display: none; }
   .page { padding: 18px 24px 40px; }
 }
 @media (orientation: landscape) and (max-height: 500px) {
