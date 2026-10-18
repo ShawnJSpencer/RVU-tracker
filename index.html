@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>RVU Tracker</title>
+  <meta name="description" content="Clinic productivity tracker for Dr. Spencer">
+  <meta name="theme-color" content="#16537e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="RVU Tracker">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="top">
+      <div class="top-row">
+        <button class="brand" data-go="calendar" aria-label="Calendar">
+          <span class="brand-mark">RVU</span>
+        </button>
+        <div class="nav-date">
+          <button class="icon-btn" data-nav="-1" aria-label="Previous">‹</button>
+          <button class="date-title" id="dateTitle" data-nav="today"></button>
+          <button class="icon-btn" data-nav="1" aria-label="Next">›</button>
+        </div>
+        <div class="top-actions">
+          <button class="pomo-pill" id="pomoPill" hidden></button>
+          <button class="sync-dot" id="syncDot" data-go="settings" aria-label="Sync status"></button>
+        </div>
+      </div>
+      <div class="seg" id="viewSeg" role="tablist">
+        <button data-view="day">Day</button>
+        <button data-view="week">Week</button>
+        <button data-view="month">Month</button>
+        <button data-view="year">Year</button>
+      </div>
+    </header>
+
+    <div class="daybar" id="daybar"></div>
+    <main id="main" class="main"></main>
+
+    <nav class="tabs" id="tabs">
+      <button data-go="calendar"><i>📅</i><span>Calendar</span></button>
+      <button data-go="hours"><i>🗂️</i><span>MD / APD</span></button>
+      <button data-go="reports"><i>📊</i><span>Reports</span></button>
+      <button data-go="insights"><i>🔥</i><span>Habits</span></button>
+      <button data-go="settings"><i>⚙️</i><span>Settings</span></button>
+    </nav>
+
+    <button class="fab" id="pomoFab" aria-label="Focus timer">🍅</button>
+  </div>
+
+  <div class="scrim" id="scrim" hidden></div>
+  <section class="sheet" id="sheet" role="dialog" aria-modal="true" hidden></section>
+  <div class="progress-toast" id="progressToast" aria-live="polite"></div>
+  <div class="toast" id="toast" aria-live="polite"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
