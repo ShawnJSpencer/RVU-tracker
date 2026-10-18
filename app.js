@@ -25,6 +25,14 @@ const persistUi = () => save(K.ui, { page: ui.page, view: ui.view, zoom: ui.zoom
 const ZMIN = 0.3, ZMAX = 3;
 const zoomFor = (v = ui.view) => (ui.zoom && ui.zoom[v]) || 1;
 const clampZoom = (z) => Math.min(ZMAX, Math.max(ZMIN, z));
+// Smallest zoom where the hours currently shown still fill the screen (don't zoom out past them).
+function minZoomFor(base) {
+  const sc = $(".tl-scroll");
+  if (!sc || !base) return ZMIN;
+  let avail = sc.clientHeight;
+  for (const h of sc.querySelectorAll(".pull-hint")) avail -= h.offsetHeight;
+  return Math.max(0.05, avail / ((range.end - range.start) * base));
+}
 let pinchState = null, pinchEndedAt = 0;
 
 /* ================================================================ utils */
@@ -340,7 +348,8 @@ function zoomTimelineTo(z, clientY, minute) {
   if (!sc || !inner) return;
   const v = ui.view === "week" ? "week" : "day";
   const ppm0 = Number(wrap.dataset.ppm), base = ppm0 / zoomFor(v);
-  z = clampZoom(z);
+  const zmin = minZoomFor(base);
+  z = Math.min(Math.max(ZMAX, zmin), Math.max(zmin, z));
   const scTop = sc.getBoundingClientRect().top;
   if (minute == null) minute = range.start + (clientY - inner.getBoundingClientRect().top) / ppm0;
   (ui.zoom ||= {})[v] = z;
@@ -357,6 +366,11 @@ function commitZoom(showToast = true) {
 function bindTimeline(keepScroll) {
   const sc = $(".tl-scroll"), inner = $(".tl-inner"), wrap = $(".tl-wrap");
   if (!sc) return;
+  {
+    // keep the shown hours filling the screen (e.g. after rotating or switching views)
+    const v = ui.view === "week" ? "week" : "day", ppm0 = Number(wrap.dataset.ppm), base = ppm0 / zoomFor(v), zmin = minZoomFor(base);
+    if (zoomFor(v) < zmin - 1e-6) { (ui.zoom ||= {})[v] = zmin; applyPpm(base * zmin); }
+  }
   if (keepScroll != null) sc.scrollTop = keepScroll;
   else if (!didInitialScroll || ui.date === todayStr()) { scrollToNow(); didInitialScroll = true; }
 
@@ -367,12 +381,14 @@ function bindTimeline(keepScroll) {
   sc.addEventListener("touchstart", (e) => {
     if (drag.active) return;
     ty0 = e.touches[0].clientY; pull = 0;
-    edge = sc.scrollTop <= 0 ? "top" : sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 1 ? "bottom" : null;
+    // both can be true when the whole day fits on screen; the drag direction picks one
+    edge = { top: sc.scrollTop <= 0, bottom: sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 1 };
   }, { passive: true });
   sc.addEventListener("touchmove", (e) => {
     if (drag.active) { e.preventDefault(); return; }
     if (pinchState || e.touches.length > 1 || ty0 == null || !edge) return;
     const dy = e.touches[0].clientY - ty0;
+    if (typeof edge === "object") { edge = dy > 0 && edge.top ? "top" : dy < 0 && edge.bottom ? "bottom" : edge.top || edge.bottom ? edge : null; if (typeof edge === "object") return; }
     if ((edge === "top" && dy > 0) || (edge === "bottom" && dy < 0)) {
       pull = dy * 0.45;
       inner.classList.add("pulling");

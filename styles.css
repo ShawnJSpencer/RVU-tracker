@@ -70,7 +70,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 [hidden] { display: none !important; }
 
 .app {
-  height: 100dvh; display: grid;
+  /* pinned to the screen edges: iOS home-screen apps report a too-short 100dvh, which left a gap at the bottom */
+  position: fixed; inset: 0; display: grid;
   grid-template-rows: auto auto 1fr auto;
   grid-template-areas: "top" "daybar" "main" "tabs";
   padding-top: env(safe-area-inset-top);
