@@ -55,6 +55,13 @@
 button, .mcell, .ycard, .tl-head, .top, .tabs, .daybar, .seg { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 html, body { margin: 0; height: 100%; color: var(--ink); }
 html { background: var(--surface); overscroll-behavior: none; }
+/* iPhone home-screen apps: when the page is only as tall as its "100%" (screen minus status bar), iOS shrinks the
+   whole app to that height and leaves a strip at the bottom. Making the page exactly one status bar taller
+   matches the real screen, so iOS uses all of it (the screen check showed 894 vs 956 = the 62px status bar). */
+@media (display-mode: standalone) {
+  html { height: calc(100% + env(safe-area-inset-top)); }
+  body { height: 100%; }
+}
 body { background: var(--bg); }
 body {
   font-family: "Nunito", ui-rounded, system-ui, -apple-system, "Segoe UI", sans-serif;

@@ -1640,6 +1640,8 @@ document.addEventListener("change", (e) => {
 /* After the on-screen keyboard closes, iOS can leave a home-screen app nudged out of place.
    Snap the page back whenever a text field loses focus or the visible area changes size. */
 const resetViewport = () => { if (!/input|textarea|select/i.test(document.activeElement?.tagName || "")) window.scrollTo(0, 0); };
+// the page is never meant to scroll as a whole; if iOS nudges it, put it back
+addEventListener("scroll", () => { if (scrollY !== 0 && !/input|textarea|select/i.test(document.activeElement?.tagName || "")) window.scrollTo(0, 0); }, { passive: true });
 document.addEventListener("focusout", () => setTimeout(resetViewport, 60));
 window.visualViewport?.addEventListener("resize", () => setTimeout(resetViewport, 60));
 addEventListener("orientationchange", () => setTimeout(resetViewport, 300));
