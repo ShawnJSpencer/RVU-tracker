@@ -20,7 +20,12 @@ ui.date = todayStr(); // always open on today
 let range = { start: state.settings.dayStart, end: state.settings.dayEnd };
 
 const persist = () => save(K.state, state);
-const persistUi = () => save(K.ui, { page: ui.page, view: ui.view });
+const persistUi = () => save(K.ui, { page: ui.page, view: ui.view, zoom: ui.zoom });
+/* calendar zoom (pinch on phone/iPad, pinch or Ctrl+scroll on a trackpad, + / − keys) */
+const ZMIN = 0.3, ZMAX = 3;
+const zoomFor = (v = ui.view) => (ui.zoom && ui.zoom[v]) || 1;
+const clampZoom = (z) => Math.min(ZMAX, Math.max(ZMIN, z));
+let pinchState = null, pinchEndedAt = 0;
 
 /* ================================================================ utils */
 const $ = (s, el = document) => el.querySelector(s);
@@ -231,14 +236,14 @@ function slotHtml(date, s, ppm, lay, compact) {
   const codes = s.status === "billed" && s.codes?.length ? `<span class="code">${s.codes.join(" + ")}</span>` : "";
   const status = s.status === "noshow" ? " · no-show" : s.status === "canceled" ? " · canceled" : "";
   const w = `calc(${100 / lanes}% - 5px)`, l = `calc(${(100 / lanes) * lane}% + 2px)`;
-  return `<div class="${cls}" data-id="${esc(s.id)}" data-date="${date}" style="top:${top}px;height:${h}px;left:${l};width:${w};right:auto" role="button" tabindex="0">
+  return `<div class="${cls}" data-id="${esc(s.id)}" data-date="${date}" data-m="${s.start}" data-dur="${s.dur}" data-wk="${compact ? 1 : 0}" style="top:${top}px;height:${h}px;left:${l};width:${w};right:auto" role="button" tabindex="0">
     <span class="t">${C.fmtTime(s.start)}–${C.fmtTime(s.start + s.dur)}</span>
     <span class="n">${esc(slotLabel(s))}${status} ${codes}</span></div>`;
 }
 function renderTimeline(dates) {
   const isWeek = dates.length > 1;
   const narrow = innerWidth < 700;
-  const ppm = isWeek ? (narrow ? 1.05 : 1.15) : (narrow ? 1.6 : 1.8);
+  const ppm = (isWeek ? (narrow ? 1.05 : 1.15) : (narrow ? 1.6 : 1.8)) * zoomFor(isWeek ? "week" : "day");
   const perDay = dates.map((d) => ({ d, hist: isHistDate(d), off: C.isDayOff(state, d) || !!hist.days[d]?.off, slots: isHistDate(d) ? [] : C.resolveDay(state, d) }));
   // grow range to fit anything scheduled outside it
   for (const x of perDay) for (const s of x.slots) { range.start = Math.min(range.start, Math.floor(s.start / 60) * 60); range.end = Math.max(range.end, Math.ceil((s.start + s.dur) / 60) * 60); }
@@ -261,8 +266,8 @@ function renderTimeline(dates) {
   let gutter = "", lines = "";
   for (let m = range.start; m <= range.end; m += 30) {
     const y = (m - range.start) * ppm;
-    if (m % 60 === 0 && m < range.end) gutter += `<span style="top:${y + (m === range.start ? 8 : 0)}px">${C.fmtTime(m, { compact: true })}</span>`;
-    lines += `<div class="tl-line ${m % 60 ? "half" : ""}" style="top:${y}px"></div>`;
+    if (m % 60 === 0 && m < range.end) gutter += `<span data-m="${m}" style="top:${y + (m === range.start ? 8 : 0)}px">${C.fmtTime(m, { compact: true })}</span>`;
+    lines += `<div class="tl-line ${m % 60 ? "half" : ""}" data-m="${m}" style="top:${y}px"></div>`;
   }
   const colsHtml = perDay.map((x) => {
     const wk = [0, 6].includes(C.weekday(x.d));
@@ -272,7 +277,7 @@ function renderTimeline(dates) {
       inner += x.off || s.seen ? `<div class="slot BLK ${s.pending ? "overdue" : ""} ${isWeek ? "compact" : ""}" data-goday="${x.d}" style="top:4px;left:3px;right:3px;height:${Math.min(H - 8, 140)}px">
         <span class="n">${x.off ? esc(hist.days[x.d]?.label || "Off") : `${s.seen} pts`}</span><span class="n">${x.off ? "" : r2(s.rvu) + " RVU"}</span>${s.pending ? `<span class="n">${s.pending} open</span>` : ""}</div>` : "";
     } else if (x.off) {
-      inner += `<div class="slot BLK offblock ${isWeek ? "compact" : ""}" data-goday="${x.d}" style="top:4px;left:3px;right:3px;height:${H - 8}px"><span class="n">🏖️<br>${esc(state.days[x.d]?.offLabel || "Day off")}</span>${isWeek ? "" : `<button class="btn sm" data-daymenu="1">Change</button>`}</div>`;
+      inner += `<div class="slot BLK offblock ${isWeek ? "compact" : ""}" data-goday="${x.d}" data-full="1" style="top:4px;left:3px;right:3px;height:${H - 8}px"><span class="n">🏖️<br>${esc(state.days[x.d]?.offLabel || "Day off")}</span>${isWeek ? "" : `<button class="btn sm" data-daymenu="1">Change</button>`}</div>`;
     } else {
       const lay = layoutLanes(x.slots);
       inner += x.slots.map((s) => slotHtml(x.d, s, ppm, lay.get(s.id), isWeek)).join("");
@@ -312,12 +317,48 @@ function extendRange(delta) {
   if (sc2) sc2.scrollTop = delta < 0 ? 0 : (delta > 0 ? sc2.scrollHeight : prev);
 }
 
+// Re-lays the timeline out at a new scale in place (no re-render), so a pinch stays smooth.
+function applyPpm(ppm) {
+  const wrap = $(".tl-wrap"), inner = $(".tl-inner");
+  if (!inner) return;
+  wrap.dataset.ppm = ppm;
+  const H = (range.end - range.start) * ppm;
+  inner.style.height = `${H}px`;
+  for (const el of inner.querySelectorAll(".tl-line[data-m]")) el.style.top = `${(el.dataset.m - range.start) * ppm}px`;
+  for (const el of inner.querySelectorAll(".tl-gutter span[data-m]")) { const m = Number(el.dataset.m); el.style.top = `${(m - range.start) * ppm + (m === range.start ? 8 : 0)}px`; }
+  for (const el of inner.querySelectorAll(".slot[data-m]")) {
+    const h = Math.max(el.dataset.dur * ppm - 3, 14);
+    el.style.top = `${(el.dataset.m - range.start) * ppm}px`; el.style.height = `${h}px`;
+    el.classList.toggle("compact", el.dataset.wk === "1" || h < 34); el.classList.toggle("tiny", h < 20);
+  }
+  for (const el of inner.querySelectorAll("[data-full]")) el.style.height = `${H - 8}px`;
+  const nl = $(".now-line"); if (nl) nl.style.top = `${(nowMin() - range.start) * ppm}px`;
+}
+// Zoom to `z`, keeping the time under screen position `clientY` where it is.
+function zoomTimelineTo(z, clientY, minute) {
+  const sc = $(".tl-scroll"), inner = $(".tl-inner"), wrap = $(".tl-wrap");
+  if (!sc || !inner) return;
+  const v = ui.view === "week" ? "week" : "day";
+  const ppm0 = Number(wrap.dataset.ppm), base = ppm0 / zoomFor(v);
+  z = clampZoom(z);
+  const scTop = sc.getBoundingClientRect().top;
+  if (minute == null) minute = range.start + (clientY - inner.getBoundingClientRect().top) / ppm0;
+  (ui.zoom ||= {})[v] = z;
+  applyPpm(base * z);
+  sc.scrollTop = inner.offsetTop + (minute - range.start) * base * z - (clientY - scTop);
+}
+let zoomSaveTimer;
+function commitZoom(showToast = true) {
+  clearTimeout(zoomSaveTimer);
+  zoomSaveTimer = setTimeout(() => { persistUi(); if (!pinchState) render(); }, 250);
+  if (showToast) toast(`🔍 ${Math.round(zoomFor(ui.view === "week" ? "week" : "day") * 100)}%`, 900);
+}
+
 function bindTimeline(keepScroll) {
   const sc = $(".tl-scroll"), inner = $(".tl-inner"), wrap = $(".tl-wrap");
   if (!sc) return;
   if (keepScroll != null) sc.scrollTop = keepScroll;
   else if (!didInitialScroll || ui.date === todayStr()) { scrollToNow(); didInitialScroll = true; }
-  const ppm = Number(wrap.dataset.ppm);
 
   /* elastic pull: past the top opens earlier slots, past the bottom opens later ones */
   const indTop = $(".pull-ind.top", sc), indBot = $(".pull-ind.bottom", sc);
@@ -330,7 +371,7 @@ function bindTimeline(keepScroll) {
   }, { passive: true });
   sc.addEventListener("touchmove", (e) => {
     if (drag.active) { e.preventDefault(); return; }
-    if (ty0 == null || !edge) return;
+    if (pinchState || e.touches.length > 1 || ty0 == null || !edge) return;
     const dy = e.touches[0].clientY - ty0;
     if ((edge === "top" && dy > 0) || (edge === "bottom" && dy < 0)) {
       pull = dy * 0.45;
@@ -347,7 +388,7 @@ function bindTimeline(keepScroll) {
     }
   }, { passive: false });
   sc.addEventListener("touchend", () => {
-    if (pull && Math.abs(pull) > THRESH) {
+    if (!pinchState && pull && Math.abs(pull) > THRESH) {
       const dir = pull > 0 ? -60 : 60;
       if ((dir < 0 && range.start > 300) || (dir > 0 && range.end < 22 * 60)) { inner.style.transform = ""; extendRange(dir); return; }
     }
@@ -356,6 +397,7 @@ function bindTimeline(keepScroll) {
   });
   let wheelAcc = 0, wheelTimer;
   sc.addEventListener("wheel", (e) => {
+    if (e.ctrlKey) return;
     const atTop = sc.scrollTop <= 0 && e.deltaY < 0, atBot = sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 1 && e.deltaY > 0;
     if (!atTop && !atBot) { wheelAcc = 0; return; }
     wheelAcc += e.deltaY;
@@ -365,8 +407,49 @@ function bindTimeline(keepScroll) {
     if (Math.abs(wheelAcc) > 420) { wheelAcc = 0; extendRange(atTop ? -60 : 60); }
   }, { passive: true });
 
+  /* pinch to zoom (two fingers on phone / iPad) */
+  sc.addEventListener("touchstart", (e) => {
+    if (e.touches.length !== 2 || drag.active) return;
+    const [a, b] = e.touches, mid = (a.clientY + b.clientY) / 2;
+    const ppm0 = Number(wrap.dataset.ppm);
+    pinchState = { d0: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1, z0: zoomFor(ui.view === "week" ? "week" : "day"), minute: range.start + (mid - inner.getBoundingClientRect().top) / ppm0 };
+    ty0 = null; pull = 0; edge = null;
+    inner.classList.remove("pulling"); inner.style.transform = ""; indTop.classList.remove("show"); indBot.classList.remove("show");
+  }, { passive: true });
+  let pinchRaf = 0;
+  sc.addEventListener("touchmove", (e) => {
+    if (!pinchState || e.touches.length < 2) return;
+    if (e.cancelable) e.preventDefault();
+    const [a, b] = e.touches;
+    const z = pinchState.z0 * Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) / pinchState.d0;
+    const mid = (a.clientY + b.clientY) / 2;
+    cancelAnimationFrame(pinchRaf);
+    pinchRaf = requestAnimationFrame(() => zoomTimelineTo(z, mid, pinchState?.minute));
+  }, { passive: false });
+  const endPinch = (e) => {
+    if (!pinchState || e.touches.length >= 2) return;
+    pinchState = null; pinchEndedAt = Date.now();
+    commitZoom();
+  };
+  sc.addEventListener("touchend", endPinch);
+  sc.addEventListener("touchcancel", endPinch);
+  /* trackpad pinch / Ctrl+scroll on a computer */
+  sc.addEventListener("wheel", (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    zoomTimelineTo(zoomFor(ui.view === "week" ? "week" : "day") * Math.exp(-e.deltaY * 0.01), e.clientY);
+    commitZoom(false);
+  }, { passive: false });
+  /* Safari on a Mac sends gesture events for trackpad pinches */
+  if (!("ontouchstart" in window)) {
+    let gz0 = 1;
+    sc.addEventListener("gesturestart", (e) => { e.preventDefault(); gz0 = zoomFor(ui.view === "week" ? "week" : "day"); });
+    sc.addEventListener("gesturechange", (e) => { e.preventDefault(); zoomTimelineTo(gz0 * e.scale, e.clientY); });
+    sc.addEventListener("gestureend", (e) => { e.preventDefault(); commitZoom(); });
+  }
+
   /* tap empty space → add; press-and-hold a slot → drag in 15-minute steps */
-  inner.addEventListener("pointerdown", (e) => onSlotPointerDown(e, ppm));
+  inner.addEventListener("pointerdown", (e) => { if (!pinchState) onSlotPointerDown(e, Number(wrap.dataset.ppm)); });
   inner.addEventListener("click", (e) => {
     if (drag.justDropped) { drag.justDropped = false; return; }
     const g = e.target.closest("[data-goday]");
@@ -376,7 +459,7 @@ function bindTimeline(keepScroll) {
     const col = e.target.closest(".tl-col");
     if (!col || col.classList.contains("off")) return;
     const y = e.clientY - col.getBoundingClientRect().top;
-    const m = Math.max(0, snap(range.start + y / ppm - 15));
+    const m = Math.max(0, snap(range.start + y / Number(wrap.dataset.ppm) - 15));
     openAddSheet(col.dataset.date, m);
   });
 }
@@ -393,6 +476,7 @@ function onSlotPointerDown(e, ppm) {
   const homeCol = cols.find((c) => c.date === date);
   let timer = null, newStart = s.start, newDate = date;
   const begin = () => {
+    if (pinchState) { cleanup(); return; }
     drag.active = true; el.classList.add("dragging"); buzz(12);
     el.setPointerCapture?.(e.pointerId);
   };
@@ -1422,9 +1506,11 @@ document.addEventListener("click", (e) => {
 });
 // Safari can still zoom on a fast double tap; block it everywhere except text fields
 document.addEventListener("dblclick", (e) => { if (!/input|textarea|select/i.test(e.target.tagName)) e.preventDefault(); }, { passive: false });
+document.addEventListener("gesturestart", (e) => { if (e.target.closest?.(".tl-scroll")) e.preventDefault(); }, { passive: false });
 let lastTouchEnd = 0;
 document.addEventListener("touchend", (e) => {
   const now = Date.now();
+  if (e.touches.length || pinchState || now - pinchEndedAt < 400) { lastTouchEnd = 0; return; }
   if (now - lastTouchEnd < 350 && e.target.closest("button, .mcell, .ycard, [data-goday], [data-nav]")) { e.preventDefault(); e.target.closest("button, .mcell, .ycard, [data-goday], [data-nav]").click(); }
   lastTouchEnd = now;
 }, { passive: false });
@@ -1442,6 +1528,12 @@ document.addEventListener("pointerdown", (e) => {
 document.addEventListener("pointerup", () => clearTimeout(holdTimer));
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeSheet();
+  if ($("#sheet").hidden && ui.page === "calendar" && (ui.view === "day" || ui.view === "week") && !/input|select|textarea/i.test(e.target.tagName) && ["+", "=", "-", "_", "0"].includes(e.key)) {
+    const sc = $(".tl-scroll"); if (!sc) return;
+    const r = sc.getBoundingClientRect(), cy = r.top + r.height / 2;
+    const z = e.key === "0" ? 1 : zoomFor(ui.view) * (e.key === "-" || e.key === "_" ? 0.8 : 1.25);
+    zoomTimelineTo(z, cy); commitZoom(); return;
+  }
   if ($("#sheet").hidden && !/input|select|textarea/i.test(e.target.tagName) && ui.page === "calendar") {
     if (e.key === "ArrowLeft") nav(-1); else if (e.key === "ArrowRight") nav(1); else if (e.key === "t") nav("today");
     else if ("dwmy".includes(e.key)) { ui.view = { d: "day", w: "week", m: "month", y: "year" }[e.key]; persistUi(); render(); }

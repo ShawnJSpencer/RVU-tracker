@@ -133,7 +133,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .tl-head .h b { display: block; font-family: "Fredoka", "Avenir Next", "Segoe UI", Roboto, Arial, sans-serif; font-size: 17px; color: var(--ink); font-weight: 600; }
 .tl-head .h.today b { color: var(--on-primary); background: var(--primary); border-radius: 99px; width: 30px; height: 30px; line-height: 30px; margin: 2px auto 0; }
 .tl-head .h small { display: block; font-size: 11px; }
-.tl-scroll { flex: 1; overflow-y: auto; position: relative; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.tl-scroll { flex: 1; overflow-y: auto; touch-action: pan-x pan-y; position: relative; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .tl-inner { position: relative; display: grid; transition: transform .25s cubic-bezier(.2, .8, .2, 1); }
 .tl-inner.pulling { transition: none; }
 .tl-gutter { position: relative; }
@@ -357,8 +357,9 @@ pre.email { white-space: pre-wrap; background: var(--surface-2); border-radius: 
 .pomo .tomatoes { font-size: 22px; letter-spacing: 2px; min-height: 30px; }
 
 /* ============================================================ toasts & progress */
-.toast { position: fixed; left: 50%; top: calc(14px + env(safe-area-inset-top)); transform: translate(-50%, -150%); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 99px; font-weight: 800; z-index: 60; transition: transform .3s; max-width: 92vw; }
-.toast.show { transform: translate(-50%, 0); }
+.toast { position: fixed; left: 50%; top: calc(14px + env(safe-area-inset-top)); transform: translate(-50%, -150%); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 99px; font-weight: 800; z-index: 60; max-width: 92vw;
+  opacity: 0; visibility: hidden; pointer-events: none; transition: transform .3s, opacity .25s, visibility 0s .3s; }
+.toast.show { transform: translate(-50%, 0); opacity: 1; visibility: visible; transition: transform .3s, opacity .25s, visibility 0s; }
 .progress-toast {
   position: fixed; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom)); width: min(440px, 92vw); z-index: 55;
   transform: translate(-50%, calc(100% + 160px)); opacity: 0; transition: transform .45s cubic-bezier(.2, 1.4, .4, 1), opacity .3s; pointer-events: none;
