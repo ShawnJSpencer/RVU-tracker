@@ -54,12 +54,13 @@
 /* no double-tap zoom or text selection when tapping quickly */
 button, .mcell, .ycard, .tl-head, .top, .tabs, .daybar, .seg { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 html, body { margin: 0; height: 100%; color: var(--ink); }
-/* html shows in any strip iOS leaves outside the app area, so match it to the tab bar */
-html { background: var(--surface); }
+html { background: var(--surface); overscroll-behavior: none; }
 body { background: var(--bg); }
 body {
   font-family: "Nunito", ui-rounded, system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 15px; line-height: 1.35; overflow: hidden; overscroll-behavior: none;
+  font-size: 15px; line-height: 1.35; overscroll-behavior: none;
+  /* no overflow:hidden here: on iPhone home-screen apps it clips everything to the screen minus the status bar,
+     which left a strip at the bottom. The app is position:fixed, so the page itself never scrolls anyway. */
   -webkit-font-smoothing: antialiased;
 }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -73,7 +74,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 [hidden] { display: none !important; }
 
 .app {
-  /* pinned to the screen edges: iOS home-screen apps report a too-short 100dvh, which left a gap at the bottom */
+  /* pinned to the real screen edges */
   position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: grid;
   grid-template-rows: auto auto 1fr auto;
   grid-template-areas: "top" "daybar" "main" "tabs";
