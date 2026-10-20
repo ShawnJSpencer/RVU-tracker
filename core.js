@@ -46,6 +46,18 @@ export const TYPES = {
   BLK: { label: "Blocked / admin",             short: "Blk", dur: 60, patient: false },
 };
 export const ROLE_NAMES = { MD: "Medical Director", APD: "Associate Program Director" };
+
+/* ------------------------------------------------------- Epic In Basket */
+// Same order as the Epic In Basket. `key` msg/rx/call are the three calendar tallies.
+export const INBOX_CATS = [
+  { key: "staff",   name: "Staff Message",       icon: "👥", aliases: ["staff messages"] },
+  { key: "call",    name: "Patient Calls",       icon: "📞", aliases: ["patient call"] },
+  { key: "results", name: "Results",             icon: "🧪", aliases: ["result"] },
+  { key: "rx",      name: "Rx Request",          icon: "💊", aliases: ["rx requests"] },
+  { key: "rxresp",  name: "Rx Response",         icon: "📬", aliases: ["rx responses"] },
+  { key: "notes",   name: "My Incomplete Notes", icon: "📝", aliases: ["incomplete notes"] },
+  { key: "msg",     name: "Pt Advice Request",   icon: "💬", aliases: ["patient advice request", "pt advice requests"] },
+];
 export const isPatient = (s) => !!TYPES[s.type]?.patient;
 export const roleOf = (s) => s.role || TYPES[s.type]?.role || null;
 
@@ -255,6 +267,15 @@ export function mergeStates(a, b) {
       day.slots[id] = !s1 ? s2 : !s2 ? s1 : (s2.updatedAt || 0) > (s1.updatedAt || 0) ? s2 : s1;
     }
     out.days[d] = day;
+  }
+  // inbox: newest change wins per folder
+  const ia = a.inbox?.cats || {}, ib = b.inbox?.cats || {};
+  if (a.inbox || b.inbox) {
+    out.inbox = { cats: {}, lastImport: Math.max(a.inbox?.lastImport || 0, b.inbox?.lastImport || 0) };
+    for (const k of new Set([...Object.keys(ia), ...Object.keys(ib)])) {
+      const x = ia[k], y = ib[k];
+      out.inbox.cats[k] = !x ? y : !y ? x : (y.updatedAt || 0) > (x.updatedAt || 0) ? y : x;
+    }
   }
   const cdates = new Set([...Object.keys(a.counters || {}), ...Object.keys(b.counters || {})]);
   for (const d of cdates) {

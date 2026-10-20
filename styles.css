@@ -488,3 +488,63 @@ html.privacy .stat.money { filter: none; }
 /* table cells: blur just the text so row shading stays intact */
 html.privacy td.money, html.privacy th.money { filter: none; color: transparent; text-shadow: 0 0 9px var(--ink); }
 html.privacy th.money { text-shadow: 0 0 8px var(--ink-soft); }
+
+/* ============================================================ bottom bar: swipe sideways on phones */
+.tabs button { position: relative; }
+.tab-badge { position: absolute; top: 1px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: #ff3b30; color: #fff; font: 800 11px/18px "Nunito", system-ui, sans-serif; font-style: normal; text-align: center; box-shadow: 0 0 0 2px var(--surface); }
+@media (max-width: 899px) {
+  .tabs { overflow-x: auto; justify-content: flex-start; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { flex: 0 0 20%; scroll-snap-align: start; }
+}
+@media (min-width: 900px) { .tab-badge { position: static; margin-left: auto; } }
+
+/* ============================================================ inbox */
+.ib-head { display: flex; align-items: center; gap: 10px; }
+.ib-head h2 { display: flex; align-items: center; gap: 8px; }
+.ib-total { font-family: "Fredoka", "Avenir Next", "Segoe UI", Roboto, Arial, sans-serif; font-size: 16px; min-width: 28px; height: 28px; padding: 0 8px; border-radius: 99px; background: var(--primary); color: var(--on-primary); display: inline-grid; place-items: center; }
+.ib-newtag { font-weight: 900; font-size: 13px; color: var(--accent); }
+.ib-actions { display: flex; gap: 8px; margin-bottom: 12px; }
+.ib-actions .btn.primary { flex: 1; font-size: 16px; padding: 12px; }
+.ib-list { padding: 4px 10px; }
+.ib-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.ib-row:last-child { border-bottom: 0; }
+.ib-name { flex: 1; display: flex; align-items: center; gap: 10px; text-align: left; min-width: 0; }
+.ib-name b { display: block; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ib-name small { display: block; font-size: 12px; font-weight: 900; color: var(--accent); }
+.ib-row.has-new .ib-name b { font-weight: 900; }
+.ib-ico { font-size: 22px; width: 30px; text-align: center; flex: none; }
+.ib-count { font-family: "Fredoka", "Avenir Next", "Segoe UI", Roboto, Arial, sans-serif; font-size: 20px; font-weight: 500; color: var(--ink-soft); min-width: 54px; text-align: right; cursor: pointer; }
+.ib-count b { font-weight: 600; color: var(--ink-soft); }
+.ib-count i { font-style: normal; opacity: .6; margin: 0 1px; }
+.ib-row.has-new .ib-count { color: var(--ink); font-weight: 700; }
+.ib-row.has-new .ib-count b { color: var(--accent); }
+.ib-btn { width: 42px; height: 42px; border-radius: 12px; font-size: 22px; font-weight: 900; background: var(--surface-2); display: grid; place-items: center; flex: none; }
+.ib-btn.minus { background: color-mix(in srgb, var(--accent) 28%, var(--surface-2)); }
+.ib-empty { text-align: center; padding: 34px 16px; background: linear-gradient(160deg, color-mix(in srgb, var(--hero-c) 22%, var(--surface)), var(--surface)); }
+.ib-empty .e { font-size: 64px; display: block; animation: floaty 3s ease-in-out infinite; }
+.ib-empty h3 { font-family: "Fredoka", "Avenir Next", "Segoe UI", Roboto, Arial, sans-serif; font-size: 26px; margin: 8px 0 4px; }
+.ib-empty p { margin: 4px 0; color: var(--ink-soft); font-weight: 700; }
+.ib-cleared b { color: var(--ink); }
+@keyframes floaty { 50% { transform: translateY(-8px) rotate(-4deg); } }
+
+/* ============================================================ camera import */
+.cam { position: fixed; inset: 0; z-index: 80; background: #000; color: #fff; display: flex; flex-direction: column; }
+.cam video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cam.nocam video { display: none; }
+.cam-guide { position: absolute; left: 4%; right: 4%; top: 6%; bottom: 40%; border: 3px dashed rgb(255 255 255 / .75); border-radius: 18px; box-shadow: 0 0 0 100vmax rgb(0 0 0 / .35); display: flex; align-items: flex-start; justify-content: center; pointer-events: none; transition: border-color .3s; }
+.cam-guide span { margin-top: 8px; padding: 4px 10px; border-radius: 99px; background: rgb(0 0 0 / .5); font-weight: 800; font-size: 13px; }
+.cam.locked .cam-guide { border-style: solid; border-color: #3bc27a; }
+.cam.nocam .cam-guide { display: none; }
+.cam-top { position: relative; display: flex; align-items: center; gap: 10px; padding: calc(env(safe-area-inset-top) + 10px) 14px 10px; background: linear-gradient(rgb(0 0 0 / .65), transparent); }
+.cam-x { width: 40px; height: 40px; border-radius: 50%; background: rgb(255 255 255 / .2); color: #fff; font-size: 20px; font-weight: 900; flex: none; }
+.cam-status { font-weight: 800; font-size: 14px; text-shadow: 0 1px 3px #000; }
+.cam-panel { position: relative; margin-top: auto; background: var(--surface); color: var(--ink); border-radius: 22px 22px 0 0; padding: 12px 14px calc(14px + env(safe-area-inset-bottom)); max-height: 46%; overflow-y: auto; }
+.cam-row { display: flex; justify-content: space-between; gap: 10px; padding: 6px 2px; border-bottom: 1px solid var(--line); font-size: 14px; font-weight: 700; color: var(--ink-soft); }
+.cam-row.ok { color: var(--ink); }
+.cam-row b { color: var(--accent); }
+.cam-row:last-child { border-bottom: 0; }
+.cam-q { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #ff9f43; color: #fff; font-weight: 900; }
+.cam-btns { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.cam-btns .btn.primary { margin-left: auto; min-width: 110px; }
+.cam-btns .btn.primary:disabled { opacity: .45; }
