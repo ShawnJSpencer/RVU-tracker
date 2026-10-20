@@ -479,3 +479,12 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 .count-pop b { font-family: "Fredoka", "Avenir Next", "Segoe UI", Roboto, Arial, sans-serif; font-weight: 600; font-size: 22px; min-width: 34px; text-align: center; }
 .count-pop small { position: absolute; bottom: 4px; left: 0; right: 0; text-align: center; font-size: 10px; font-weight: 800; color: var(--ink-soft); white-space: nowrap; }
 .counter.open { box-shadow: 0 0 0 2px var(--primary) inset; }
+
+/* privacy blur (double-tap the RVU logo on the Calendar) */
+html.privacy .money { filter: blur(7px); -webkit-user-select: none; user-select: none; pointer-events: none; }
+html.privacy .stat.money b, html.privacy .stat.money small { filter: blur(6px); }
+html.privacy .stat.money { filter: none; }
+.money { transition: filter .25s; }
+/* table cells: blur just the text so row shading stays intact */
+html.privacy td.money, html.privacy th.money { filter: none; color: transparent; text-shadow: 0 0 9px var(--ink); }
+html.privacy th.money { text-shadow: 0 0 8px var(--ink-soft); }

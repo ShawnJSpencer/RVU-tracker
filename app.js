@@ -20,6 +20,10 @@ ui.date = todayStr(); // always open on today
 let range = { start: state.settings.dayStart, end: state.settings.dayEnd };
 
 const persist = () => save(K.state, state);
+// Privacy blur (per device, never synced): hides every dollar amount and money word.
+let privacy = (() => { try { return localStorage.getItem("rvu.privacy") === "1"; } catch { return false; } })();
+const applyPrivacy = () => { document.documentElement.classList.toggle("privacy", privacy); FX.setPrivacy?.(privacy); };
+let lastBrandTap = 0;
 const persistUi = () => save(K.ui, { page: ui.page, view: ui.view, zoom: ui.zoom });
 /* calendar zoom (pinch on phone/iPad, pinch or Ctrl+scroll on a trackpad, + / − keys) */
 const ZMIN = 0.3, ZMAX = 3;
@@ -188,7 +192,7 @@ function renderDaybar() {
     <div class="stat ${allDone ? "done" : ""} ${overdue ? "hot" : ""}"><b>${billed}/${seen}</b><small>notes${allDone ? " ✓" : ""}</small></div>
     ${overdue ? `<div class="stat hot"><b>${overdue}</b><small>waiting</small></div>` : ""}
     <div class="stat"><b>${r2(rvu)}</b><small>RVU</small></div>
-    <div class="stat"><b>${hasRate ? money(money$) : "—"}</b><small>earned</small></div>
+    <div class="stat money"><b>${hasRate ? money(money$) : "—"}</b><small>earned</small></div>
     <div class="stat"><b>🔥${st.closer.current}</b><small>day streak</small></div>`;
   if (ui.view === "day" && !isHistDate(ui.date)) {
     const c = state.counters[ui.date] || {};
@@ -582,7 +586,7 @@ function renderHistDay(date) {
         <div class="kpi"><small>Patients</small><b>${s.seen}</b></div>
         <div class="kpi"><small>Notes billed</small><b>${s.billed}</b></div>
         <div class="kpi"><small>No-shows</small><b>${s.noshow ?? "—"}</b></div>
-        <div class="kpi hero"><small>RVU</small><b>${r2(s.rvu)}</b><em>${money(C.dollarRate(state.settings, C.yearOf(date)) != null ? s.rvu * C.dollarRate(state.settings, C.yearOf(date)) : null)}</em></div>
+        <div class="kpi hero"><small>RVU</small><b>${r2(s.rvu)}</b><em class="money">${money(C.dollarRate(state.settings, C.yearOf(date)) != null ? s.rvu * C.dollarRate(state.settings, C.yearOf(date)) : null)}</em></div>
       </div>
       <div class="chips">${chips || '<span class="muted">No codes</span>'}</div>`}
     ${Array.from({ length: s.pending }, (_, i) => `<button class="pending-note" data-histfill="${date}">⏳ Open note ${i + 1} — tap when it's done</button>`).join("")}
@@ -620,7 +624,7 @@ function renderMonth() {
   const rate = C.dollarRate(state.settings, y);
   return `<div class="page">
     <div class="month-sum">
-      <div class="kpi hero"><small>RVU</small><b>${r2(tot.rvu)}</b><em>${rate != null ? money(tot.rvu * rate) : "no $/RVU rate for " + y}</em></div>
+      <div class="kpi hero"><small>RVU</small><b>${r2(tot.rvu)}</b><em class="money">${rate != null ? money(tot.rvu * rate) : "no $/RVU rate for " + y}</em></div>
       <div class="kpi"><small>Patients</small><b>${tot.seen}</b><em>${tot.days} working days</em></div>
       <div class="kpi"><small>Avg RVU / day</small><b>${tot.days ? r2(tot.rvu / tot.days) : "—"}</b></div>
       <div class="kpi"><small>No-shows · cancels</small><b>${tot.ns} · ${tot.cx}</b></div>
@@ -647,11 +651,11 @@ function renderYear() {
     }
     yt += tot; yd += days;
     return `<button class="ycard" data-gomonth="${y}-${C.pad(m)}-01"><h4>${name.slice(0, 3)}<span>${tot ? r1(tot) : ""}</span></h4><div class="ygrid">${cells}</div>
-      <div class="foot"><span>${days ? days + " days" : ""}</span><span>${rate != null && tot ? money(tot * rate) : ""}</span></div></button>`;
+      <div class="foot"><span>${days ? days + " days" : ""}</span><span class="money">${rate != null && tot ? money(tot * rate) : ""}</span></div></button>`;
   }).join("");
   return `<div class="page">
     <div class="kpis">
-      <div class="kpi hero"><small>${y} RVU</small><b>${r2(yt)}</b><em>${rate != null ? money(yt * rate) : "Set a $/RVU rate for " + y + " in Settings"}</em></div>
+      <div class="kpi hero"><small>${y} RVU</small><b>${r2(yt)}</b><em class="money">${rate != null ? money(yt * rate) : "Set a $/RVU rate for " + y + " in Settings"}</em></div>
       <div class="kpi"><small>Working days</small><b>${yd}</b></div>
       <div class="kpi"><small>Avg RVU / day</small><b>${yd ? r2(yt / yd) : "—"}</b></div>
     </div>
@@ -1217,13 +1221,13 @@ function renderReports() {
   const showMonthAvg = ["half", "season", "year"].includes(rep.group);
   const nsRate = (ns, seen) => (seen + ns ? `${Math.round((ns / (seen + ns)) * 100)}%` : "—");
   const table = `<div class="tbl-wrap"><table class="tbl"><thead><tr>
-      <th>${REPORT_GROUPS.find((g) => g[0] === rep.group)[1]}</th><th>Working days</th><th>Patients</th><th>NP</th><th>F/U</th><th>Therapy</th><th>Cancels</th><th>No-shows</th><th>No-show %</th><th>RVU</th><th>RVU / day</th>${showMonthAvg ? "<th>Avg RVU / month</th>" : ""}<th>$ / RVU</th><th>Income</th></tr></thead><tbody>
+      <th>${REPORT_GROUPS.find((g) => g[0] === rep.group)[1]}</th><th>Working days</th><th>Patients</th><th>NP</th><th>F/U</th><th>Therapy</th><th>Cancels</th><th>No-shows</th><th>No-show %</th><th>RVU</th><th>RVU / day</th>${showMonthAvg ? "<th>Avg RVU / month</th>" : ""}<th class="money">$ / RVU</th><th class="money">Income</th></tr></thead><tbody>
       ${rows.map((r) => {
         const yrs = new Set([...r.months].map((m) => m.slice(0, 4)));
         const rateTxt = yrs.size === 1 ? (C.dollarRate(state.settings, Number([...yrs][0])) != null ? "$" + C.dollarRate(state.settings, Number([...yrs][0])) : "—") : yrs.size ? "mixed" : "—";
-        return `<tr><td>${esc(r.label)}${r.off && !r.days ? " 🏖️" : ""}</td><td>${r.days}</td><td>${r.seen}</td><td>${r.np}</td><td>${r.fu}</td><td>${r.th}</td><td>${r.cxKnown ? r.cx : "—"}</td><td>${r.nsKnown ? r.ns : "—"}</td><td>${r.nsKnown ? nsRate(r.ns, r.seen) : "—"}</td><td>${r2(r.rvu)}</td><td>${r.days ? r2(r.rvu / r.days) : "—"}</td>${showMonthAvg ? `<td>${r.months.size ? r2(r.rvu / r.months.size) : "—"}</td>` : ""}<td>${rateTxt}</td><td>${r.incomeKnown ? money(r.income) + (r.incomeMissing ? "*" : "") : "—"}</td></tr>`;
+        return `<tr><td>${esc(r.label)}${r.off && !r.days ? " 🏖️" : ""}</td><td>${r.days}</td><td>${r.seen}</td><td>${r.np}</td><td>${r.fu}</td><td>${r.th}</td><td>${r.cxKnown ? r.cx : "—"}</td><td>${r.nsKnown ? r.ns : "—"}</td><td>${r.nsKnown ? nsRate(r.ns, r.seen) : "—"}</td><td>${r2(r.rvu)}</td><td>${r.days ? r2(r.rvu / r.days) : "—"}</td>${showMonthAvg ? `<td>${r.months.size ? r2(r.rvu / r.months.size) : "—"}</td>` : ""}<td class="money">${rateTxt}</td><td class="money">${r.incomeKnown ? money(r.income) + (r.incomeMissing ? "*" : "") : "—"}</td></tr>`;
       }).join("")}
-      <tr class="total"><td>Total</td><td>${T.days}</td><td>${T.seen}</td><td>${T.np}</td><td>${T.fu}</td><td>${T.th}</td><td>${T.cx}</td><td>${T.ns}</td><td>${nsRate(T.ns, T.seen)}</td><td>${r2(T.rvu)}</td><td>${T.days ? r2(T.rvu / T.days) : "—"}</td>${showMonthAvg ? `<td>${r2(avgMonth)}</td>` : ""}<td></td><td>${T.incomeKnown ? money(T.income) : "—"}</td></tr>
+      <tr class="total"><td>Total</td><td>${T.days}</td><td>${T.seen}</td><td>${T.np}</td><td>${T.fu}</td><td>${T.th}</td><td>${T.cx}</td><td>${T.ns}</td><td>${nsRate(T.ns, T.seen)}</td><td>${r2(T.rvu)}</td><td>${T.days ? r2(T.rvu / T.days) : "—"}</td>${showMonthAvg ? `<td>${r2(avgMonth)}</td>` : ""}<td class="money"></td><td class="money">${T.incomeKnown ? money(T.income) : "—"}</td></tr>
     </tbody></table></div>`;
   const chartRows = rows.slice(-36);
   return `<div class="page">
@@ -1233,16 +1237,16 @@ function renderReports() {
       <select id="rYear">${rep.group === "day" || rep.group === "week" ? "" : `<option value="all" ${rep.year === "all" ? "selected" : ""}>All years</option>`}${years.map((y) => `<option ${rep.year === y ? "selected" : ""}>${y}</option>`).join("")}</select>
     </div>
     <div class="kpis">
-      <div class="kpi hero"><small>Total RVU</small><b>${r2(T.rvu)}</b><em>${T.incomeKnown ? money(T.income) : "no $/RVU rate on file"}</em></div>
+      <div class="kpi hero"><small>Total RVU</small><b>${r2(T.rvu)}</b><em class="money">${T.incomeKnown ? money(T.income) : "no $/RVU rate on file"}</em></div>
       <div class="kpi"><small>Working days</small><b>${T.days}</b><em>${T.seen} patients</em></div>
       <div class="kpi"><small>Avg RVU / day</small><b>${T.days ? r2(T.rvu / T.days) : "—"}</b></div>
       <div class="kpi"><small>Avg RVU / month</small><b>${r2(avgMonth)}</b></div>
       <div class="kpi"><small>No-shows</small><b>${T.ns}</b><em>${nsRate(T.ns, T.seen)} · ${T.cx} cancels</em></div>
-      ${rate != null && rep.year !== "all" ? `<div class="kpi"><small>Annual pace ${yr}</small><b>${money(avgMonth * 12 * rate)}</b><em>avg month × 12 × $${rate}</em></div>` : ""}
+      ${rate != null && rep.year !== "all" ? `<div class="kpi"><small>Annual pace ${yr}</small><b class="money">${money(avgMonth * 12 * rate)}</b><em class="money">avg month × 12 × $${rate}</em></div>` : ""}
     </div>
     ${chartRows.length > 1 ? `<div class="card"><h3 style="margin-top:0">RVU by ${REPORT_GROUPS.find((g) => g[0] === rep.group)[1].toLowerCase()}</h3>${barChart(chartRows.map((r) => r.rvu), chartRows.map((r) => rep.group === "month" ? C.MONTH_SHORT[Number(r.key.slice(5, 7)) - 1] + (rep.year === "all" ? " '" + r.key.slice(2, 4) : "") : rep.group === "day" ? String(Number(r.key.slice(8))) : rep.group === "week" ? r.key.slice(5).replace("-", "/") : rep.group === "season" ? (r.key.endsWith("2") ? "Sum " : "Sch ") + r.key.slice(2, 4) : rep.group === "half" ? (r.key.endsWith("1") ? "H1 " : "H2 ") + r.key.slice(2, 4) : r.label), { fmt: (v) => Math.round(v) })}</div>` : ""}
     ${table}
-    <p class="help">Imported years count "X" days as days off and don't include cancellations (the spreadsheet didn't track them). No-shows were tracked from Dec 2022 on. Income uses each year's $/RVU rate (Settings → Billing).${rows.some((r) => r.incomeMissing) ? " * Some days in this row have no rate on file." : ""}</p>
+    <p class="help">Imported years count "X" days as days off and don't include cancellations (the spreadsheet didn't track them). No-shows were tracked from Dec 2022 on. <span class="money">Income uses each year's $/RVU rate (Settings → Billing).${rows.some((r) => r.incomeMissing) ? " * Some days in this row have no rate on file." : ""}</span></p>
   </div>`;
 }
 
@@ -1598,7 +1602,20 @@ setInterval(pomoUi, 1000);
 /* ================================================================ events */
 document.addEventListener("click", (e) => {
   const t = e.target;
-  const goEl = t.closest("[data-go]"); if (goEl) { go(goEl.dataset.go); return; }
+  const goEl = t.closest("[data-go]");
+  if (goEl && goEl.classList.contains("brand") && ui.page === "calendar") {
+    // secret: double-tap the RVU logo while on the Calendar toggles the money blur
+    const now = Date.now();
+    if (now - lastBrandTap < 450) {
+      lastBrandTap = 0; privacy = !privacy;
+      try { localStorage.setItem("rvu.privacy", privacy ? "1" : "0"); } catch { /* private mode */ }
+      applyPrivacy(); buzz(12);
+      return;
+    }
+    lastBrandTap = now;
+    return; // already on the Calendar: a single tap does nothing
+  }
+  if (goEl) { go(goEl.dataset.go); return; }
   const navEl = t.closest("[data-nav]"); if (navEl) { nav(navEl.dataset.nav); return; }
   const vEl = t.closest("[data-view]"); if (vEl && vEl.closest("#viewSeg")) { ui.view = vEl.dataset.view; persistUi(); render(); return; }
   if (t.closest("#scrim")) { closeSheet(); return; }
@@ -1721,6 +1738,7 @@ setInterval(() => { if (!document.hidden) syncNow(); }, 90000);
 let resizeT; addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (ui.page === "calendar") render(); }, 200); });
 
 /* ================================================================ boot */
+applyPrivacy();
 freezePast(); persist();
 render();
 pomoUi();

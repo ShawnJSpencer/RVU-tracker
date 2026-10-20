@@ -24,6 +24,9 @@ function ensure() {
 }
 
 export function setPalette(colors) { if (colors?.length) palette = colors; }
+let privacyOn = false; // money-themed celebrations are skipped while the privacy blur is on
+export function setPrivacy(on) { privacyOn = !!on; }
+const MONEY_FX = ["coinPop", "coinShower"];
 const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function add(p) {
@@ -155,13 +158,13 @@ let lastSmall = "", lastBig = "";
 export function celebrateNote(x = innerWidth / 2, y = innerHeight / 2) {
   ensure();
   if (reduced()) { domFx("fx-plusone", `<span>+1 note</span>`, 1600); return; }
-  let k; do k = pick(Object.keys(SMALL)); while (k === lastSmall);
+  let k; do k = pick(Object.keys(SMALL)); while (k === lastSmall || (privacyOn && MONEY_FX.includes(k)));
   lastSmall = k; SMALL[k](x, y);
 }
 export function celebrateDay() {
   ensure();
   if (reduced()) { domFx("fx-banner gold", `<b>ALL NOTES DONE</b>`, 2600); return; }
-  let k; do k = pick(Object.keys(BIG)); while (k === lastBig);
+  let k; do k = pick(Object.keys(BIG)); while (k === lastBig || (privacyOn && MONEY_FX.includes(k)));
   lastBig = k; BIG[k]();
 }
 export function celebrate(name) { ensure(); (SMALL[name] || BIG[name])?.(innerWidth / 2, innerHeight / 2); }
