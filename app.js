@@ -23,7 +23,7 @@ const persist = () => save(K.state, state);
 // Privacy blur (per device, never synced): hides every dollar amount and money word.
 let privacy = (() => { try { return localStorage.getItem("rvu.privacy") === "1"; } catch { return false; } })();
 const applyPrivacy = () => { document.documentElement.classList.toggle("privacy", privacy); FX.setPrivacy?.(privacy); };
-let lastBrandTap = 0;
+let lastBrandTap = 0, lastBrandEvent = 0, brandBlockUntil = 0;
 const persistUi = () => save(K.ui, { page: ui.page, view: ui.view, zoom: ui.zoom });
 /* calendar zoom (pinch on phone/iPad, pinch or Ctrl+scroll on a trackpad, + / − keys) */
 const ZMIN = 0.3, ZMAX = 3;
@@ -1603,10 +1603,15 @@ setInterval(pomoUi, 1000);
 document.addEventListener("click", (e) => {
   const t = e.target;
   const goEl = t.closest("[data-go]");
-  if (goEl && goEl.classList.contains("brand") && ui.page === "calendar") {
-    // secret: double-tap the RVU logo while on the Calendar toggles the money blur
+  if (goEl && goEl.classList.contains("brand")) {
+    // secret: double-tap the RVU logo while on the Calendar toggles the money blur.
+    // Both taps must start on the Calendar: a double-tap that begins on another tab only switches to the Calendar.
     const now = Date.now();
-    if (now - lastBrandTap < 450) {
+    if (now - lastBrandEvent < 80) return; // iPhone can deliver one tap as two clicks; count it once
+    lastBrandEvent = now;
+    if (ui.page !== "calendar") { brandBlockUntil = now + 700; lastBrandTap = 0; go("calendar"); return; }
+    if (now < brandBlockUntil) { brandBlockUntil = now + 700; return; } // still part of the tap that switched tabs
+    if (lastBrandTap && now - lastBrandTap < 450) {
       lastBrandTap = 0; privacy = !privacy;
       try { localStorage.setItem("rvu.privacy", privacy ? "1" : "0"); } catch { /* private mode */ }
       applyPrivacy(); buzz(12);
