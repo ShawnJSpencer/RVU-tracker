@@ -1303,6 +1303,7 @@ async function openImporter() {
       <div class="cam-btns">
         <label class="btn sm">🖼️ Use a photo<input type="file" accept="image/*" hidden></label>
         <button class="btn sm" data-cam="rescan" hidden>↺ Rescan</button>
+        <button class="btn sm" data-cam="share" title="Share what the camera saw, to help fix misreads">🐞</button>
         <button class="btn primary" data-cam="apply" disabled>Apply</button>
       </div>
     </div>`;
@@ -1325,6 +1326,22 @@ async function openImporter() {
     show(null); status("Reading…"); if (me.stream) scanLoop();
   };
   $("[data-cam=apply]", el).onclick = () => { if (me.locked) applyImport(me.locked); };
+  // troubleshooting: save the current camera frame + what was read (only the folder counts are on it)
+  $("[data-cam=share]", el).onclick = async () => {
+    const v = $("video", el), files = [];
+    if (v.videoWidth && me.stream) {
+      const c = document.createElement("canvas"); c.width = v.videoWidth; c.height = v.videoHeight;
+      c.getContext("2d").drawImage(v, 0, 0);
+      const blob = await new Promise((r) => c.toBlob(r, "image/jpeg", 0.92));
+      files.push(new File([blob], "inbox-scan.jpg", { type: "image/jpeg" }));
+    }
+    const info = JSON.stringify({ ...me.debug, tally: me.tally?.votes && Object.fromEntries(Object.entries(me.tally.votes).map(([k, m]) => [k, Object.fromEntries(m)])), ua: navigator.userAgent }, null, 1);
+    files.push(new File([info], "inbox-scan.txt", { type: "text/plain" }));
+    try {
+      if (navigator.canShare?.({ files })) await navigator.share({ files, title: "Inbox scan" });
+      else for (const f of files) { const a = document.createElement("a"); a.href = URL.createObjectURL(f); a.download = f.name; a.click(); }
+    } catch {}
+  };
   $("input[type=file]", el).onchange = async (e) => {
     const f = e.target.files?.[0]; if (!f) return;
     me.photo = true; me.active = false; me.stream?.getTracks().forEach((t) => t.stop()); me.stream = null;
@@ -1355,21 +1372,35 @@ async function openImporter() {
   async function scanLoop() {
     const engine = await OCR.getEngine(status);
     status("Reading… hold steady");
+    const tally = new OCR.Tally();
+    let frame = 0, lastNewAt = 0;
+    me.tally = tally;
     while (me === cam && me.active && !me.locked && me.stream) {
       if (video.readyState < 2 || !video.videoWidth) { await new Promise((r) => setTimeout(r, 200)); continue; }
+      const vw = video.videoWidth, vh = video.videoHeight;
+      // read only what's inside the dashed box (mapped from the screen into the camera frame)
+      const vr = video.getBoundingClientRect(), gr = $(".cam-guide", el).getBoundingClientRect();
+      const roi = OCR.guideRect(vw, vh, vr.width, vr.height, { l: (gr.left - vr.left) / vr.width, r: (vr.right - gr.right) / vr.width, t: (gr.top - vr.top) / vr.height, b: (vr.bottom - gr.bottom) / vr.height });
+      // alternate two clean-up styles: one handles faint gray text, the other close-ups with screen grid
+      const adaptive = frame % 2 === 0;
       let res;
-      try { res = await OCR.readImage(video, video.videoWidth, video.videoHeight, engine); } catch { await new Promise((r) => setTimeout(r, 400)); continue; }
+      try {
+        res = await OCR.readImage(video, vw, vh, engine, { roi, adaptive });
+        me.debug = { at: new Date().toISOString(), size: `${vw}x${vh}`, roi, adaptive, res };
+      } catch { await new Promise((r) => setTimeout(r, 400)); continue; }
       if (me !== cam || me.locked) return;
-      const keys = Object.keys(res);
-      if (!keys.length) { status("Looking for the In Basket list… move a little closer"); me.history = []; show(null); continue; }
-      show(res);
-      const sig = JSON.stringify(res);
-      me.history.push(sig);
-      const unreadable = keys.some((k) => res[k].unreadable);
-      // auto-capture: two reads in a row that agree
-      if (me.history.length >= 2 && me.history.at(-1) === me.history.at(-2) && !unreadable) { lock(res); return; }
-      status(unreadable ? "Almost — hold steady or move a little closer" : "Double-checking…");
-      if (me.history.length >= 6 && unreadable && me.history.at(-1) === me.history.at(-2)) { lock(res, "Some numbers were hard to read (?) — fix after applying if needed"); return; }
+      frame++;
+      const before = Object.keys(tally.votes).length;
+      tally.add(res);
+      if (Object.keys(tally.votes).length > before) lastNewAt = frame;
+      const best = tally.result(2), keys = Object.keys(best);
+      if (!keys.length) { status(frame > 3 ? "Can't find the list yet — fill the box with it, a little closer" : "Looking for the In Basket list…"); show(null); continue; }
+      show(best);
+      const unsure = keys.filter((k) => !best[k].sure);
+      // done when every folder found has two matching reads and nothing new has turned up for 2 frames
+      if (frame >= 3 && !unsure.length && frame - lastNewAt >= 2) { lock(best); return; }
+      if (frame >= 14) { lock(best, unsure.length ? "Some numbers were hard to read (?) — fix after applying if needed" : undefined); return; }
+      status(unsure.length ? `Reading ${keys.length} folder${keys.length > 1 ? "s" : ""}… hold steady` : "Double-checking…");
     }
   }
 }
