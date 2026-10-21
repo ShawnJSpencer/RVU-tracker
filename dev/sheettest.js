@@ -1,0 +1,42 @@
+const { chromium } = require('/opt/npm-tools/node_modules/playwright');
+const OUT = process.argv[2];
+(async () => {
+  const b = await chromium.launch(); const errors = [];
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, timezoneId: 'America/Denver' });
+  await ctx.route(/fonts\.(googleapis|gstatic)/, (r) => r.abort());
+  const p = await ctx.newPage(); await p.clock.install({ time: new Date('2026-10-20T10:20:00-06:00') });
+  p.on('pageerror', (e) => errors.push(e.message));
+  await p.goto('http://localhost:8765/'); await p.waitForTimeout(500);
+  const cdp = await ctx.newCDPSession(p);
+  const swipe = async (x, y1, y2, steps = 8, gap = 16) => {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: y1 }] });
+    for (let i = 1; i <= steps; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y1 + (y2 - y1) * i / steps }] }); await p.waitForTimeout(gap); }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await p.waitForTimeout(450);
+  };
+  const open = async () => { await p.locator('.slot.FU').first().tap(); await p.waitForTimeout(400); };
+  const grabY = async () => { const r = await p.locator('.grab-zone').boundingBox(); return r.y + r.height / 2; };
+  await open(); await p.screenshot({ path: OUT + '/s0-sheet.png' });
+  let g = await grabY();
+  await swipe(195, g, g + 40, 4, 16);
+  console.log('small drag on handle -> still open:', await p.locator('#sheet').isVisible());
+  g = await grabY();
+  await swipe(195, g, g + 300);
+  console.log('long drag on handle -> closed:', !(await p.locator('#sheet').isVisible()));
+  await open(); g = await grabY();
+  await swipe(195, g + 200, g + 290, 3, 5);
+  console.log('quick flick from content at top -> closed:', !(await p.locator('#sheet').isVisible()));
+  await open();
+  await p.evaluate(() => (document.getElementById('sheet').scrollTop = 200));
+  g = await grabY();
+  await swipe(195, g + 300, g + 500);
+  console.log('drag on content while scrolled -> still open:', await p.locator('#sheet').isVisible());
+  g = await grabY();
+  await swipe(195, g, g + 300);
+  console.log('drag on handle while scrolled -> closed:', !(await p.locator('#sheet').isVisible()));
+  await open(); g = await grabY();
+  await p.locator('.grab-zone').tap(); await p.waitForTimeout(300);
+  console.log('tap handle -> closed:', !(await p.locator('#sheet').isVisible()));
+  await open(); console.log('reopened clean transform:', await p.evaluate(() => document.getElementById('sheet').style.transform || 'none'));
+  console.log('ERRORS', JSON.stringify(errors)); await b.close();
+})();

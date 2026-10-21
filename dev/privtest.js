@@ -1,0 +1,31 @@
+const { chromium } = require('/opt/npm-tools/node_modules/playwright');
+const fs = require('fs');
+const OUT = process.argv[2];
+const hist = fs.readFileSync('/home/claude/history.json', 'utf8');
+(async () => {
+  const b = await chromium.launch(); const errors = [];
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, timezoneId: 'America/Denver' });
+  await ctx.addInitScript((h) => { if (!localStorage.getItem('rvu.hist.v1')) localStorage.setItem('rvu.hist.v1', h); }, hist);
+  await ctx.route(/fonts\.(googleapis|gstatic)/, (r) => r.abort());
+  const p = await ctx.newPage(); await p.clock.install({ time: new Date('2026-10-20T10:20:00-06:00') });
+  p.on('pageerror', (e) => errors.push(e.message));
+  await p.goto('http://localhost:8765/'); await p.waitForTimeout(500);
+  const on = () => p.evaluate(() => document.documentElement.classList.contains('privacy'));
+  await p.locator('.brand').tap(); await p.waitForTimeout(120); await p.locator('.brand').tap(); await p.waitForTimeout(200);
+  console.log('after double tap on calendar:', await on());
+  await p.screenshot({ path: OUT + '/p1-day.png' });
+  await p.locator('[data-view="year"]').tap(); await p.waitForTimeout(250);
+  await p.screenshot({ path: OUT + '/p2-year.png' });
+  await p.locator('[data-go="reports"]').first().tap(); await p.waitForTimeout(300);
+  await p.screenshot({ path: OUT + '/p3-reports.png' });
+  await p.locator('.tbl-wrap').scrollIntoViewIfNeeded(); await p.locator('.tbl-wrap').evaluate((e) => (e.scrollLeft = 2000));
+  await p.locator('.tbl-wrap').screenshot({ path: OUT + '/p4-table.png' });
+  // from reports: tap logo twice quickly -> should only go to calendar, not toggle
+  await p.locator('.brand').tap(); await p.waitForTimeout(100); await p.locator('.brand').tap(); await p.waitForTimeout(200);
+  console.log('page after tap from reports:', await p.evaluate(() => document.querySelector('#tabs .on')?.dataset.go), 'privacy still:', await on());
+  await p.reload(); await p.waitForTimeout(400);
+  console.log('persists after reload:', await on());
+  await p.locator('.brand').tap(); await p.waitForTimeout(120); await p.locator('.brand').tap(); await p.waitForTimeout(200);
+  console.log('toggled off:', !(await on()));
+  console.log('ERRORS', JSON.stringify(errors)); await b.close();
+})();
