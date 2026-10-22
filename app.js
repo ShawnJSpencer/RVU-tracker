@@ -1247,7 +1247,7 @@ function renderInbox() {
       <button class="btn primary" data-ibimport="1">📷 Import from Epic</button>
       <button class="btn" data-ibadd="1">＋ Add</button>
     </div>
-    ${last ? `<p class="help" style="margin:-4px 0 10px">${last}</p>` : ""}
+    <p class="help" style="margin:-4px 0 10px">${last ? `${last} · ` : ""}Tip: snip the In Basket list and press Ctrl+V here</p>
     ${body}
     <p class="help" style="text-align:center">Today: ${cameIn} came in · ${cleared} cleared</p>
   </div>`;
@@ -1290,7 +1290,7 @@ function importRows(res) {
     return `<div class="cam-row ${r && !r.unreadable ? "ok" : ""}"><span>${c.icon} ${esc(c.name)}</span><span>${val}</span></div>`;
   }).join("");
 }
-async function openImporter() {
+async function openImporter(opts = {}) {
   closeImporter();
   const el = document.createElement("div");
   el.className = "cam";
@@ -1301,7 +1301,7 @@ async function openImporter() {
     <div class="cam-panel">
       <div class="cam-list">${importRows(null)}</div>
       <div class="cam-btns">
-        <label class="btn sm">🖼️ Use a photo<input type="file" accept="image/*" hidden></label>
+        <button class="btn sm" data-cam="paste" title="Paste a screenshot (Ctrl+V)">📋 Paste screenshot</button>
         <button class="btn sm" data-cam="rescan" hidden>↺ Rescan</button>
         <button class="btn sm" data-cam="share" title="Share what the camera saw, to help fix misreads">🐞</button>
         <button class="btn primary" data-cam="apply" disabled>Apply</button>
@@ -1321,7 +1321,7 @@ async function openImporter() {
   $(".cam-x", el).onclick = closeImporter;
   $("[data-cam=rescan]", el).onclick = () => {
     me.locked = null; me.history = []; el.classList.remove("locked");
-    if (me.photo) { status("Pick another photo, or close and try the camera"); return; }
+    if (me.photo) { status("Paste another screenshot (Ctrl+V), or close and try the camera", true); return; }
     $("[data-cam=apply]", el).disabled = true; $("[data-cam=rescan]", el).hidden = true;
     show(null); status("Reading…"); if (me.stream) scanLoop();
   };
@@ -1342,28 +1342,43 @@ async function openImporter() {
       else for (const f of files) { const a = document.createElement("a"); a.href = URL.createObjectURL(f); a.download = f.name; a.click(); }
     } catch {}
   };
-  $("input[type=file]", el).onchange = async (e) => {
-    const f = e.target.files?.[0]; if (!f) return;
+  // a pasted screenshot (e.g. from Snipping Tool): stop the camera and read the still image
+  me.readStill = async (blob) => {
+    if (me !== cam) return;
     me.photo = true; me.active = false; me.stream?.getTracks().forEach((t) => t.stop()); me.stream = null;
     me.locked = null; el.classList.remove("locked"); el.classList.add("nocam");
-    status("Reading photo…");
+    $("[data-cam=apply]", el).disabled = true;
+    show(null); status("Reading screenshot…", true);
     try {
-      const img = await createImageBitmap(f);
-      const engine = await OCR.getEngine(status);
+      const img = await createImageBitmap(blob);
+      const engine = await OCR.getEngine((t) => status(t, true));
       const res = await OCR.readImageVoted(img, img.width, img.height, engine);
       if (me !== cam) return;
-      if (!Object.keys(res).length) { status("Couldn't find the In Basket list in that photo. Try a closer one.", true); return; }
-      lock(res, "Read the photo ✓ — check the numbers, then Apply");
-    } catch (err) { status(`Couldn't read that photo: ${err.message}`, true); }
+      if (!Object.keys(res).length) { status("Couldn't find the In Basket list in that screenshot. Snip just the folder list and paste again.", true); return; }
+      lock(res, "Read the screenshot ✓ — check the numbers, then Apply");
+    } catch (err) { status(`Couldn't read that screenshot: ${err.message}`, true); }
   };
-  // live camera
+  $("[data-cam=paste]", el).onclick = async () => {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const it of items) {
+        const type = it.types.find((t) => t.startsWith("image/"));
+        if (type) return me.readStill(await it.getType(type));
+      }
+      status("No picture on the clipboard — snip the In Basket list first, then paste.", true);
+    } catch {
+      status("Press Ctrl+V to paste your screenshot.", true);
+    }
+  };
+  // live camera (skipped when opened by pasting a screenshot)
   const video = $("video", el);
+  if (opts.still) { el.classList.add("nocam"); return; }
   try {
     me.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
     if (me !== cam || me.photo) { me.stream.getTracks().forEach((t) => t.stop()); me.stream = null; return; }
     video.srcObject = me.stream; await video.play().catch(() => {});
   } catch {
-    status("Camera isn't available — tap “Use a photo” instead.");
+    status("No camera here — snip the In Basket list and press Ctrl+V (or tap 📋 Paste screenshot).");
     el.classList.add("nocam");
   }
   try { await OCR.getEngine(status); } catch (err) { status(err.message); return; }
@@ -1941,6 +1956,15 @@ document.addEventListener("keydown", (e) => {
     if (e.key === "ArrowLeft") nav(-1); else if (e.key === "ArrowRight") nav(1); else if (e.key === "t") nav("today");
     else if ("dwmy".includes(e.key)) { ui.view = { d: "day", w: "week", m: "month", y: "year" }[e.key]; persistUi(); render(); }
   }
+});
+// Ctrl+V a screenshot (e.g. from Snipping Tool) into the importer — or straight onto the Inbox page, which opens it
+document.addEventListener("paste", async (e) => {
+  if (/input|textarea/i.test(e.target.tagName || "") || e.target.isContentEditable) return;
+  const file = [...(e.clipboardData?.items || [])].find((i) => i.kind === "file" && i.type.startsWith("image/"))?.getAsFile();
+  if (!file) return;
+  if (!cam) { if (ui.page !== "inbox" || !$("#sheet").hidden) return; await openImporter({ still: true }); }
+  e.preventDefault();
+  cam?.readStill?.(file);
 });
 // swipe left/right on month & year to change period
 /* Swipe left/right on the calendar: next/previous day (week, month or year in those views).
