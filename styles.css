@@ -503,7 +503,6 @@ html.privacy th.money { text-shadow: 0 0 8px var(--ink-soft); }
 .ib-head { display: flex; align-items: center; gap: 10px; }
 .ib-head h2 { display: flex; align-items: center; gap: 8px; }
 .ib-total { font-family: "Fredoka", "Avenir Next", "Segoe UI", Roboto, Arial, sans-serif; font-size: 16px; min-width: 28px; height: 28px; padding: 0 8px; border-radius: 99px; background: var(--primary); color: var(--on-primary); display: inline-grid; place-items: center; }
-.ib-newtag { font-weight: 900; font-size: 13px; color: var(--accent); }
 .ib-actions { display: flex; gap: 8px; margin-bottom: 12px; }
 .ib-actions .btn.primary { flex: 1; font-size: 16px; padding: 12px; }
 .ib-list { padding: 4px 10px; }
@@ -512,13 +511,10 @@ html.privacy th.money { text-shadow: 0 0 8px var(--ink-soft); }
 .ib-name { flex: 1; display: flex; align-items: center; gap: 10px; text-align: left; min-width: 0; }
 .ib-name b { display: block; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ib-name small { display: block; font-size: 12px; font-weight: 900; color: var(--accent); }
-.ib-row.has-new .ib-name b { font-weight: 900; }
 .ib-ico { font-size: 22px; width: 30px; text-align: center; flex: none; }
 .ib-count { font-family: "Fredoka", "Avenir Next", "Segoe UI", Roboto, Arial, sans-serif; font-size: 20px; font-weight: 500; color: var(--ink-soft); min-width: 54px; text-align: right; cursor: pointer; }
 .ib-count b { font-weight: 600; color: var(--ink-soft); }
 .ib-count i { font-style: normal; opacity: .6; margin: 0 1px; }
-.ib-row.has-new .ib-count { color: var(--ink); font-weight: 700; }
-.ib-row.has-new .ib-count b { color: var(--accent); }
 .ib-btn { width: 42px; height: 42px; border-radius: 12px; font-size: 22px; font-weight: 900; background: var(--surface-2); display: grid; place-items: center; flex: none; }
 .ib-btn.minus { background: color-mix(in srgb, var(--accent) 28%, var(--surface-2)); }
 .ib-empty { text-align: center; padding: 34px 16px; background: linear-gradient(160deg, color-mix(in srgb, var(--hero-c) 22%, var(--surface)), var(--surface)); }

@@ -1,6 +1,6 @@
 // Offline support: app files are served network-first (so updates show up right away)
 // and fall back to the cache when there's no connection. GitHub API calls are never cached.
-const CACHE = "rvu-tracker-v16";
+const CACHE = "rvu-tracker-v17";
 const FILES = ["./", "index.html", "styles.css", "app.js", "core.js", "fx.js", "inbox-ocr.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {

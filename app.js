@@ -221,13 +221,13 @@ function renderDaybar() {
 const INBOX = C.INBOX_CATS;
 const CAT = Object.fromEntries(INBOX.map((c) => [c.key, c]));
 const inbox = () => (state.inbox ||= { cats: {}, lastImport: 0 });
-const ibGet = (k) => { const c = inbox().cats[k]; return { total: c?.total || 0, new: Math.min(c?.new || 0, c?.total || 0) }; };
+const ibGet = (k) => { const c = inbox().cats[k]; return { total: c?.total || 0 }; };
 const ibTotal = () => INBOX.reduce((t, c) => t + ibGet(c.key).total, 0);
-function ibSet(k, total, nw, now = Date.now()) {
+function ibSet(k, total, now = Date.now()) {
   const prev = ibGet(k);
-  total = Math.max(0, Math.round(total) || 0); nw = Math.min(total, Math.max(0, Math.round(nw) || 0));
-  if (total === prev.total && nw === prev.new) return 0;
-  inbox().cats[k] = { total, new: nw, updatedAt: now };
+  total = Math.max(0, Math.round(total) || 0);
+  if (total === prev.total) return 0;
+  inbox().cats[k] = { total, updatedAt: now };
   const day = (state.counters[todayStr()] ||= {});
   if (total > prev.total) day[k + "In"] = (day[k + "In"] || 0) + (total - prev.total);
   if (total < prev.total) day[k + "Done"] = (day[k + "Done"] || 0) + (prev.total - total);
@@ -248,12 +248,11 @@ function afterInboxChange(cleared, x = innerWidth / 2, y = innerHeight / 2, fold
     else FX.celebrateTiny(x, y);
   }
 }
-// + = one came in (new), − = one handled.
+// + = one came in, − = one handled.
 function bumpCounter(key, delta) {
   const cur = ibGet(key);
   if (delta < 0 && cur.total <= 0) return false;
-  if (delta > 0) ibSet(key, cur.total + 1, cur.new + 1);
-  else ibSet(key, cur.total - 1, Math.min(cur.new, cur.total - 1));
+  ibSet(key, cur.total + (delta > 0 ? 1 : -1));
   const el = $(`[data-count="${key}"]`); el?.classList.add("bump");
   buzz(10);
   return true;
@@ -1224,7 +1223,7 @@ const INBOX_ZERO = [
 function renderInbox() {
   const cats = INBOX.map((c) => ({ ...c, ...ibGet(c.key) }));
   const active = cats.filter((c) => c.total > 0);
-  const total = active.reduce((t, c) => t + c.total, 0), newN = active.reduce((t, c) => t + c.new, 0);
+  const total = active.reduce((t, c) => t + c.total, 0);
   const day = state.counters[todayStr()] || {};
   const cameIn = INBOX.reduce((t, c) => t + (day[c.key + "In"] || 0), 0), cleared = INBOX.reduce((t, c) => t + (day[c.key + "Done"] || 0), 0);
   const last = inbox().lastImport ? `Last import ${timeOfMs(inbox().lastImport)}${C.ymd(new Date(inbox().lastImport)) === todayStr() ? "" : " " + dateShort(C.ymd(new Date(inbox().lastImport)))}` : "";
@@ -1234,15 +1233,15 @@ function renderInbox() {
     body = `<div class="card ib-empty"><span class="e">${e}</span><h3>${t}</h3><p>${m}</p>${cleared ? `<p class="ib-cleared">You cleared <b>${cleared}</b> today 💪</p>` : ""}</div>`;
   } else {
     body = `<div class="card ib-list">${active.map((c) => `
-      <div class="ib-row ${c.new ? "has-new" : ""}">
-        <button class="ib-name" data-ibedit="${c.key}"><span class="ib-ico">${c.icon}</span><span><b>${esc(c.name)}</b>${c.new ? `<small>${c.new} new</small>` : ""}</span></button>
-        <span class="ib-count" data-ibedit="${c.key}"><b>${c.new}</b><i>/</i>${c.total}</span>
+      <div class="ib-row">
+        <button class="ib-name" data-ibedit="${c.key}"><span class="ib-ico">${c.icon}</span><span><b>${esc(c.name)}</b></span></button>
+        <span class="ib-count" data-ibedit="${c.key}"><b>${c.total}</b></span>
         <button class="ib-btn minus" data-ibminus="${c.key}" aria-label="Handled one">−</button>
         <button class="ib-btn plus" data-ibplus="${c.key}" aria-label="Add one">+</button>
       </div>`).join("")}</div>`;
   }
   return `<div class="page">
-    <div class="ib-head"><h2>Inbox ${total ? `<span class="ib-total">${total}</span>` : ""}</h2>${newN ? `<span class="ib-newtag">${newN} new</span>` : ""}</div>
+    <div class="ib-head"><h2>Inbox ${total ? `<span class="ib-total">${total}</span>` : ""}</h2></div>
     <div class="ib-actions">
       <button class="btn primary" data-ibimport="1">📷 Import from Epic</button>
       <button class="btn" data-ibadd="1">＋ Add</button>
@@ -1262,14 +1261,12 @@ function openIbEdit(key) {
   const c = CAT[key];
   const draw = () => {
     const v = ibGet(key);
-    openSheet(`<h3>${c.icon} ${esc(c.name)}</h3><div class="sub">Same as Epic: new / total</div>
+    openSheet(`<h3>${c.icon} ${esc(c.name)}</h3><div class="sub">Total in the folder (the number on the right in Epic)</div>
       <section><label class="lbl">Total in folder</label><div class="stepper"><button class="btn" data-st="-1">−</button><b>${v.total}</b><button class="btn" data-st="1">+</button></div></section>
-      <section><label class="lbl">New (unread)</label><div class="stepper"><button class="btn" data-nw="-1">−</button><b>${v.new}</b><button class="btn" data-nw="1">+</button></div></section>
       <section><div class="actions">${v.total ? `<button class="btn" id="ibClear">✅ All handled</button>` : ""}<button class="btn primary" id="ibDone">Done</button></div></section>`);
     const sh = $("#sheet");
-    $$("[data-st]", sh).forEach((b) => b.onclick = () => { const d = +b.dataset.st, cur = ibGet(key); const cl = ibSet(key, cur.total + d, d > 0 ? cur.new + 1 : cur.new); afterInboxChange(cl, ...ibCelebratePos(b), key); draw(); });
-    $$("[data-nw]", sh).forEach((b) => b.onclick = () => { const cur = ibGet(key); ibSet(key, Math.max(cur.total, cur.new + +b.dataset.nw), cur.new + +b.dataset.nw); afterInboxChange(0); draw(); });
-    $("#ibClear", sh)?.addEventListener("click", (e) => { const cl = ibSet(key, 0, 0); closeSheet(); afterInboxChange(cl, ...ibCelebratePos(e.currentTarget), key); });
+    $$("[data-st]", sh).forEach((b) => b.onclick = () => { const d = +b.dataset.st, cur = ibGet(key); const cl = ibSet(key, cur.total + d); afterInboxChange(cl, ...ibCelebratePos(b), key); draw(); });
+    $("#ibClear", sh)?.addEventListener("click", (e) => { const cl = ibSet(key, 0); closeSheet(); afterInboxChange(cl, ...ibCelebratePos(e.currentTarget), key); });
     $("#ibDone", sh).onclick = () => closeSheet();
   };
   draw();
@@ -1286,7 +1283,7 @@ function closeImporter() {
 function importRows(res) {
   return INBOX.map((c) => {
     const r = res?.[c.key];
-    const val = !r ? `<span class="muted">not on screen → 0</span>` : r.unreadable ? `<span class="cam-q">?</span>` : `<b>${r.new}</b>/${r.total}`;
+    const val = !r ? `<span class="muted">not on screen → 0</span>` : r.unreadable ? `<span class="cam-q">?</span>` : `<b>${r.total}</b>`;
     return `<div class="cam-row ${r && !r.unreadable ? "ok" : ""}"><span>${c.icon} ${esc(c.name)}</span><span>${val}</span></div>`;
   }).join("");
 }
@@ -1425,9 +1422,9 @@ function applyImport(res) {
   for (const c of INBOX) {
     const r = res[c.key];
     if (r?.unreadable) continue;            // couldn't read it: leave that folder as it was
-    const v = r ? r : { new: 0, total: 0 };   // Epic hides empty folders, so "not on screen" = 0
+    const v = r ? r : { total: 0 };   // Epic hides empty folders, so "not on screen" = 0
     const before = ibGet(c.key).total;
-    const cl = ibSet(c.key, v.total, v.new, now);
+    const cl = ibSet(c.key, v.total, now);
     if (cl > 0) cleared += cl; else added += v.total - before;
   }
   inbox().lastImport = now;
@@ -2033,7 +2030,7 @@ applyPrivacy();
 if (!state.inbox) { // carry today's old tallies into the new Inbox
   state.inbox = { cats: {}, lastImport: 0 };
   const c = state.counters[todayStr()] || {};
-  for (const k of ["msg", "rx", "call"]) if (c[k] > 0) state.inbox.cats[k] = { total: c[k], new: 0, updatedAt: 1 };
+  for (const k of ["msg", "rx", "call"]) if (c[k] > 0) state.inbox.cats[k] = { total: c[k], updatedAt: 1 };
 }
 freezePast(); persist();
 render();

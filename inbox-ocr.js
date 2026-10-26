@@ -164,10 +164,10 @@ export async function readCounts(lines, canvas, readDigits) {
           cx.drawImage(src, x0, y0, x1 - x0, y1 - y0, 0, 0, crop.width, crop.height);
           const t = await readDigits(crop); raws.push(t);
           const c = parseCount(t); if (c) digitReads.push(c);
-          if (c && count && c.new === count.new && c.total === count.total) break; // both looks agree
+          if (c && count && c.total === count.total) break; // both looks agree on the total
         }
         // prefer a digits-only read that agrees with the first look; otherwise the first clean digits read
-        if (!count || (digitReads.length && !digitReads.some((c) => c.new === count.new && c.total === count.total))) count = digitReads[0] || count;
+        if (!count || (digitReads.length && !digitReads.some((c) => c.total === count.total))) count = digitReads[0] || count;
       }
     }
     found[key] = count || { unreadable: true, raw: [line.text, ...raws].join(" | ") };
@@ -258,20 +258,20 @@ export class Tally {
     for (const [k, v] of Object.entries(res)) {
       const m = (this.votes[k] ||= new Map());
       this.seenAt[k] ??= this.frames;
-      if (v && !v.unreadable) { const s = `${v.new}/${v.total}`; m.set(s, (m.get(s) || 0) + 1); }
+      if (v && !v.unreadable) { const s = String(v.total); m.set(s, (m.get(s) || 0) + 1); }
       else m.set("?", (m.get("?") || 0) + 1);
     }
   }
-  // per folder: { new, total, votes, sure } or { unreadable }
+  // per folder (votes count the folder total only): { total, votes, sure } or { unreadable }
   result(minVotes = 2) {
     const out = {};
     for (const [k, m] of Object.entries(this.votes)) {
       const ranked = [...m.entries()].filter(([s]) => s !== "?").sort((a, b) => b[1] - a[1]);
       if (!ranked.length) { out[k] = { unreadable: true }; continue; }
       const [best, n] = ranked[0], second = ranked[1]?.[1] || 0;
-      const [nw, total] = best.split("/").map(Number);
+      const total = Number(best);
       const sure = n >= minVotes && n > second;
-      out[k] = sure || ranked.length === 1 ? { new: nw, total, votes: n, sure } : { unreadable: true };
+      out[k] = sure || ranked.length === 1 ? { total, votes: n, sure } : { unreadable: true };
     }
     return out;
   }
