@@ -103,7 +103,12 @@ export const DEFAULT_RVU = {
     "99235": null, "99236": 6.18, "99238": 1.28, "99239": 1.9, "99356": 1.71,
   },
 };
-export const DEFAULT_DOLLARS = { 2025: 82.6, 2026: 86.73 };
+export const DEFAULT_DOLLARS = { 2025: 82.6, 2026: 86.73, 2027: 87.8 };
+// Saved settings keep their own rates, but a year that's new here (e.g. next year's rate) gets filled in.
+export function withDefaultRates(settings) {
+  if (settings) settings.dollars = { ...DEFAULT_DOLLARS, ...(settings.dollars || {}) };
+  return settings;
+}
 
 // The codes shown by default for each visit type. Any other CPT code can be added
 // from "Other code…" and is then remembered in settings.extraCodes.
@@ -254,6 +259,7 @@ export function mergeStates(a, b) {
   if (!a) return structuredClone(b);
   if (!b) return structuredClone(a);
   const out = { version: VERSION, settings: (b.settings?.updatedAt || 0) > (a.settings?.updatedAt || 0) ? b.settings : a.settings, days: {}, counters: {} };
+  withDefaultRates(out.settings);
   const dates = new Set([...Object.keys(a.days || {}), ...Object.keys(b.days || {})]);
   for (const d of dates) {
     const x = a.days?.[d] || {}, y = b.days?.[d] || {};

@@ -14,6 +14,7 @@ const FIRST_LIVE_DAY = "2026-10-17"; // day after the last imported spreadsheet 
 
 let state = load(K.state) || C.emptyState(FIRST_LIVE_DAY);
 state.settings = { ...C.defaultSettings(state.settings?.startDate || FIRST_LIVE_DAY), ...state.settings };
+C.withDefaultRates(state.settings);
 let hist = load(K.hist, { days: {} });
 let sync = { owner: "ShawnJSpencer", repo: "RVU-tracker-data", token: "", lastSync: 0, status: "idle", message: "", ...load(K.sync, {}) };
 let ui = { page: "calendar", view: "day", date: todayStr(), ...load(K.ui, {}) };
@@ -1614,7 +1615,7 @@ function renderSettings() {
     <div class="card"><h3 style="margin-top:0">💵 Billing</h3>
       <div class="field"><label>Codes shown on every visit (besides the defaults)</label><input id="extraCodes" value="${esc(st.extraCodes.join(", "))}" placeholder="e.g. G2211, 90833"></div>
       <h3>$ per RVU</h3>
-      <div class="rvu-grid">${Array.from(new Set([...Object.keys(st.dollars), ...Object.keys(hist.days).map((d) => d.slice(0, 4)), String(new Date().getFullYear())])).sort().map((y) => `<label>${y}<input data-dollar="${y}" inputmode="decimal" value="${st.dollars[y] ?? ""}" placeholder="—"></label>`).join("")}</div>
+      <div class="rvu-grid">${Array.from(new Set([...Object.keys(st.dollars), ...Object.keys(hist.days).map((d) => d.slice(0, 4)), String(new Date().getFullYear()), String(new Date().getFullYear() + 1)])).sort().map((y) => `<label>${y}<input data-dollar="${y}" inputmode="decimal" value="${st.dollars[y] ?? ""}" placeholder="—"></label>`).join("")}</div>
       ${rvuYears.map((y, i) => `<h3>RVU values ${y}${rvuYears[i + 1] ? "–" + (Number(rvuYears[i + 1]) - 1) : "+"}</h3>
         <div class="rvu-grid">${Object.entries(st.rvu[y]).sort().map(([c, v]) => `<label>${esc(c)}<input data-rvu="${y}:${esc(c)}" inputmode="decimal" value="${v ?? ""}" placeholder="—"></label>`).join("")}</div>`).join("")}
       <div class="row" style="margin-top:10px"><button class="btn sm" id="rvuNewYear">+ New RVU table starting a new year</button></div>
