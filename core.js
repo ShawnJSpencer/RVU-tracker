@@ -130,6 +130,7 @@ export function defaultSettings(startDate) {
     rvu: structuredClone(DEFAULT_RVU),
     dollars: structuredClone(DEFAULT_DOLLARS),
     email: "shawn@spencerfam.com",
+    showInbox: false,                // Inbox tab + Epic counters; turn on in Settings (data is kept while off)
     extraCodes: [],                  // codes you've chosen to keep visible in the picker
     dayStart: T(8), dayEnd: T(17),
     updatedAt: 0,

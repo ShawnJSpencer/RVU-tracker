@@ -121,7 +121,8 @@ function applyTheme() {
 }
 
 /* ================================================================ routing & header */
-function go(page) { closeCountPop(); ui.page = page; persistUi(); closeSheet(); render(); }
+const inboxOn = () => !!state.settings.showInbox;
+function go(page) { closeCountPop(); if (page === "inbox" && !inboxOn()) page = "calendar"; ui.page = page; persistUi(); closeSheet(); render(); }
 function nav(dir) {
   if (dir === "today") { ui.date = todayStr(); render(); scrollToNow(); return; }
   const n = Number(dir), d = C.parseYmd(ui.date);
@@ -162,6 +163,8 @@ function render() {
       else if (r > tabs.scrollLeft + tabs.clientWidth) tabs.scrollTo({ left: r - tabs.clientWidth, behavior: "smooth" });
     }
   }
+  if (ui.page === "inbox" && !inboxOn()) ui.page = "calendar";
+  $$('[data-go="inbox"]').forEach((b) => (b.hidden = !inboxOn()));
   updateInboxBadge();
   renderDaybar();
   const main = $("#main");
@@ -208,7 +211,7 @@ function renderDaybar() {
     <div class="stat"><b>🔥${st.closer.current}</b><small>day streak</small></div>`;
   if (ui.view === "day" && !isHistDate(ui.date)) {
     // the three most common Epic folders, live from the Inbox (only on today's page)
-    if (ui.date === todayStr()) html += `
+    if (ui.date === todayStr() && inboxOn()) html += `
       <button class="counter" data-count="msg" title="Pt Advice Request">💬 <b>${ibGet("msg").total}</b></button>
       <button class="counter" data-count="rx" title="Rx Request">💊 <b>${ibGet("rx").total}</b></button>
       <button class="counter" data-count="call" title="Patient Calls">📞 <b>${ibGet("call").total}</b></button>`;
@@ -237,7 +240,7 @@ function ibSet(k, total, now = Date.now()) {
 }
 function updateInboxBadge() {
   const b = $("#ibBadge"); if (!b) return;
-  const n = ibTotal(); b.hidden = !n; b.textContent = n > 99 ? "99+" : String(n);
+  const n = ibTotal(); b.hidden = !n || !inboxOn(); b.textContent = n > 99 ? "99+" : String(n);
 }
 // After any inbox change: save, refresh what's on screen, and celebrate clears.
 function afterInboxChange(cleared, x = innerWidth / 2, y = innerHeight / 2, folderKey = null) {
@@ -1198,7 +1201,7 @@ function renderInsights() {
   const sumIn = (k) => tally.reduce((t, c) => t + inOf(c, k), 0);
   const allIn = (c) => INBOX.reduce((t, x) => t + inOf(c, x.key), 0);
   const tallyDays = tally.filter((c) => allIn(c) > 0).length;
-  body += `<div class="card"><h3 style="margin-top:0">In-basket tally · last 30 days</h3>
+  if (inboxOn()) body += `<div class="card"><h3 style="margin-top:0">In-basket tally · last 30 days</h3>
     ${tallyDays ? `<div class="kpis">${INBOX.filter((x) => sumIn(x.key) || sum(x.key + "Done")).map((x) => `<div class="kpi"><small>${x.icon} ${x.name}</small><b>${sumIn(x.key)}</b><em>${r1(sumIn(x.key) / tallyDays)}/day · ${sum(x.key + "Done")} cleared</em></div>`).join("")}</div>
     ${barChart(tally.map(allIn), last30.map((d) => String(C.parseYmd(d).getDate())), { color: "var(--apd)", fmt: (v) => v })}`
     : `<p class="muted">Use the Inbox tab (or 💬 💊 📞 on today's calendar): + when one comes in, − when you've handled it. Totals show up here.</p>`}</div>`;
@@ -1628,6 +1631,11 @@ function renderSettings() {
       <p class="help">The template starts on ${dateShort(st.startDate)}; days before that come from your spreadsheet.</p>
     </div>
 
+    <div class="card"><h3 style="margin-top:0">📥 Inbox</h3>
+      <label class="check"><input type="checkbox" id="showInbox" ${st.showInbox ? "checked" : ""}> Show the Inbox tab and the 💬 💊 📞 counters</label>
+      <p class="help">Turning it off just hides it — your counts and history are kept for when you turn it back on.</p>
+    </div>
+
     <div class="card"><h3 style="margin-top:0">🎉 Celebrations</h3>
       <p class="help">One of these plays at random after each note:</p>
       <div class="pills">${FX.fxNames().small.map((n) => `<button data-fx="${n}">${n.replace(/([A-Z])/g, " $1").toLowerCase()}</button>`).join("")}</div>
@@ -1696,6 +1704,7 @@ function onSettingsChange(e) {
   }
   if (t.dataset.dollar) { const v = parseFloat(t.value); if (isNaN(v)) delete st.dollars[t.dataset.dollar]; else st.dollars[t.dataset.dollar] = v; bump(); return; }
   if (t.dataset.rvu) { const [y, c] = t.dataset.rvu.split(":"); const v = parseFloat(t.value); st.rvu[y][c] = isNaN(v) ? null : v; bump(); return; }
+  if (t.id === "showInbox") { st.showInbox = t.checked; bump(); render(); return; }
   if (t.id === "extraCodes") { st.extraCodes = [...new Set(t.value.split(/[\s,]+/).map((x) => x.trim().toUpperCase()).filter(Boolean))]; bump(); return; }
   if (t.id === "dayStart") { st.dayStart = Number(t.value); range.start = st.dayStart; bump(); return; }
   if (t.id === "dayEnd") { st.dayEnd = Number(t.value); range.end = st.dayEnd; bump(); return; }
@@ -1960,7 +1969,7 @@ document.addEventListener("paste", async (e) => {
   if (/input|textarea/i.test(e.target.tagName || "") || e.target.isContentEditable) return;
   const file = [...(e.clipboardData?.items || [])].find((i) => i.kind === "file" && i.type.startsWith("image/"))?.getAsFile();
   if (!file) return;
-  if (!cam) { if (ui.page !== "inbox" || !$("#sheet").hidden) return; await openImporter({ still: true }); }
+  if (!cam) { if (!inboxOn() || ui.page !== "inbox" || !$("#sheet").hidden) return; await openImporter({ still: true }); }
   e.preventDefault();
   cam?.readStill?.(file);
 });
