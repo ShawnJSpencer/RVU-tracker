@@ -105,7 +105,7 @@ function streakInfo() { return computeStreaks(); }
 /* ================================================================ theme */
 const THEMES = {
   "blue-mountain": { name: "Blue Mountain", colors: ["#16537e", "#448cc2", "#81b669", "#b6d7a8", "#fce5cd"] },
-  "bluey-heeler": { name: "Bluey Heeler", colors: ["#edcc6f", "#d2ebff", "#88cafc", "#404066", "#2b2c41"] },
+  "bluey-heeler": { name: "Bluey Heeler", colors: ["#88cafc", "#2276c4", "#f5a15a", "#ffd166", "#8cc152"] },
   "tropical-keys": { name: "Tropical Keys", colors: ["#d4973b", "#48cb98", "#51ebd5", "#f1df68", "#a03f6d"] },
   "minty-mountain": { name: "Minty Mountain", colors: ["#a0f9f3", "#55e4c0", "#40a792", "#4b7669", "#495269"] },
   daywater: { name: "Daywater", colors: ["#074342", "#39795c", "#d1aa6e", "#734036", "#471f21"] },
