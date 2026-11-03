@@ -100,6 +100,23 @@ function freezePast() {
 
 /* ================================================================ stats helpers */
 const stats = (date) => C.dayStats(state, hist.days, date, Date.now());
+// Every note still to write, on any day up to today (imported history included), and the oldest such day.
+function allOpenNotes() {
+  const today = todayStr(); let n = 0, oldest = null;
+  const start = state.settings.startDate;
+  // imported days before the app took over, then every day since (template days included)
+  const dates = [...new Set([...Object.keys(hist.days || {}), ...Object.keys(state.days || {})])].filter((d) => d < start).sort();
+  for (let d = start; d <= today; d = C.addDays(d, 1)) dates.push(d);
+  for (const d of dates) {
+    const p = stats(d).pending || 0;
+    if (p) { n += p; oldest ??= d; }
+  }
+  return { n, oldest };
+}
+function updateOpenBadge(open = allOpenNotes()) {
+  const b = $("#openBadge"); if (!b) return;
+  b.hidden = !open.n; b.textContent = open.n > 99 ? "99+" : String(open.n);
+}
 function streakInfo() { return computeStreaks(); }
 
 /* ================================================================ theme */
@@ -187,7 +204,7 @@ function render() {
 function renderDaybar() {
   const bar = $("#daybar");
   if (!bar.dataset.popBound) { bar.dataset.popBound = "1"; bar.addEventListener("scroll", closeCountPop, { passive: true }); }
-  if (ui.page !== "calendar") { bar.hidden = true; return; }
+  if (ui.page !== "calendar") { bar.hidden = true; updateOpenBadge(); return; }
   bar.hidden = false;
   let dates;
   if (ui.view === "day") dates = [ui.date];
@@ -203,7 +220,9 @@ function renderDaybar() {
   }
   const st = streakInfo();
   const allDone = seen > 0 && billed >= seen;
+  const open = allOpenNotes(); updateOpenBadge(open);
   let html = `
+    <button class="stat open-all ${open.n ? "" : "done"}" ${open.oldest ? `data-openjump="${open.oldest}"` : ""} title="${open.n ? "Notes still to write, all days — tap to go to the oldest" : "No notes left to write"}"><b>📝 ${open.n}</b><small>${open.n ? "to do, all days" : "all caught up ✓"}</small></button>
     <div class="stat ${allDone ? "done" : ""} ${overdue ? "hot" : ""}"><b>${billed}/${seen}</b><small>notes${allDone ? " ✓" : ""}</small></div>
     ${overdue ? `<div class="stat hot"><b>${overdue}</b><small>waiting</small></div>` : ""}
     <div class="stat"><b>${r2(rvu)}</b><small>RVU</small></div>
@@ -1907,6 +1926,7 @@ document.addEventListener("click", (e) => {
   const ext = t.closest("[data-extend]"); if (ext) { extendRange(Number(ext.dataset.extend)); return; }
   if (t.closest("[data-daymenu]")) { openDayMenu(ui.date); return; }
   if (t.closest(".count-pop")) return;
+  const oj = t.closest("[data-openjump]"); if (oj) { ui.page = "calendar"; ui.view = "day"; ui.date = oj.dataset.openjump; persistUi(); render(); return; }
   const cnt = t.closest("[data-count]"); if (cnt) { openCountPop(cnt.dataset.count); return; }
   if ($(".count-pop")) closeCountPop();
   const gd = t.closest("#main [data-goday]"); if (gd && ui.page === "calendar" && !t.closest(".tl-inner")) { ui.date = gd.dataset.goday; ui.view = "day"; persistUi(); render(); return; }
