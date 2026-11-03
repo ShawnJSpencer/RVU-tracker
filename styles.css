@@ -431,6 +431,16 @@ pre.email { white-space: pre-wrap; background: var(--surface-2); border-radius: 
 @keyframes trophy { 0% { top: -20%; } 25% { top: 42%; } 85% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); } }
 .fx-sunburst { left: 50%; top: 50%; width: 220vmax; height: 220vmax; transform: translate(-50%, -50%); background: repeating-conic-gradient(from 0deg, #ffd34d55 0 8deg, transparent 8deg 18deg); animation: spin 2.8s linear forwards; }
 @keyframes spin { from { transform: translate(-50%, -50%) rotate(0); opacity: 1; } to { transform: translate(-50%, -50%) rotate(180deg); opacity: 0; } }
+.fx-night { inset: 0; background: radial-gradient(ellipse at 30% 0%, #1b2a5a99, #05081acc 70%); animation: nightfall 3.2s ease-in-out forwards; }
+@keyframes nightfall { 0% { opacity: 0 } 15%, 75% { opacity: 1 } 100% { opacity: 0 } }
+.fx-pinata { left: 50%; top: -120px; font-size: 110px; transform: translateX(-50%); animation: pinata 1.1s cubic-bezier(.3, 1.4, .5, 1) forwards; transform-origin: 50% -200px; }
+@keyframes pinata { 0% { top: -120px } 40% { top: 28%; transform: translateX(-50%) rotate(0) } 60% { transform: translateX(-50%) rotate(-14deg) } 80% { transform: translateX(-50%) rotate(12deg) } 100% { top: 28%; transform: translateX(-50%) rotate(-4deg) scale(1.15) } }
+.fx-neon { left: 50%; top: 42%; transform: translate(-50%, -50%) rotate(-4deg); text-align: center; padding: 18px 34px; border: 4px solid #ff4fd8; border-radius: 22px; background: #10051acc; box-shadow: 0 0 18px #ff4fd8, inset 0 0 18px #ff4fd8; animation: neon 3.6s linear forwards; }
+.fx-neon b { display: block; font: 700 clamp(40px, 11vw, 76px)/1 "Fredoka", "Avenir Next", "Segoe UI", sans-serif; letter-spacing: 4px; color: #fff; text-shadow: 0 0 6px #fff, 0 0 18px #ff4fd8, 0 0 40px #ff4fd8; }
+.fx-neon b + b { color: #fff; text-shadow: 0 0 6px #fff, 0 0 18px #2de2ff, 0 0 40px #2de2ff; }
+@keyframes neon { 0%, 6%, 10%, 14% { opacity: 0 } 4%, 8%, 12%, 18%, 85% { opacity: 1 } 100% { opacity: 0 } }
+.fx-aurora { inset: 0; background: linear-gradient(115deg, transparent 20%, #3cffb466 35%, #2de2ff55 48%, #a06cd555 60%, transparent 75%), radial-gradient(ellipse at 50% 120%, #04102bcc, #04102b99 60%, #04102b66); background-size: 220% 100%, 100% 100%; animation: aurora 3.8s ease-in-out forwards; }
+@keyframes aurora { 0% { opacity: 0; background-position: 0% 0, 0 0 } 20% { opacity: 1 } 80% { opacity: 1 } 100% { opacity: 0; background-position: 100% 0, 0 0 } }
 .fx-shake { animation: shake .7s; }
 .fx-quake { animation: quake .9s; }
 @keyframes shake { 20%, 60% { transform: translateX(-8px) rotate(-.5deg); } 40%, 80% { transform: translateX(8px) rotate(.5deg); } }
@@ -483,6 +493,7 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 .counter.open { box-shadow: 0 0 0 2px var(--primary) inset; }
 
 /* privacy blur (double-tap the RVU logo on the Calendar) */
+.money, .stat.money b, .stat.money small { transition: filter .5s ease; }
 html.privacy .money { filter: blur(7px); -webkit-user-select: none; user-select: none; pointer-events: none; }
 html.privacy .stat.money b, html.privacy .stat.money small { filter: blur(6px); }
 html.privacy .stat.money { filter: none; }
@@ -546,3 +557,32 @@ html.privacy th.money { text-shadow: 0 0 8px var(--ink-soft); }
 .cam-btns { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
 .cam-btns .btn.primary { margin-left: auto; min-width: 110px; }
 .cam-btns .btn.primary:disabled { opacity: .45; }
+
+/* ============================================================ wrap-up glow (last 5 min of a visit) */
+.wrap-up { position: fixed; inset: 0; z-index: 80; pointer-events: none; opacity: 0; transition: opacity 1.2s ease; --w: 0; --wp: 3s; }
+.wrap-up.on { opacity: 1; }
+.wrap-glow { position: absolute; inset: 0; animation: wrapPulse var(--wp) ease-in-out infinite;
+  box-shadow: inset 0 0 calc(30px + 150px * var(--w)) calc(6px + 34px * var(--w)) rgb(255 170 30 / calc(.22 + .5 * var(--w))); }
+.wrap-pill { position: absolute; top: calc(env(safe-area-inset-top) + 10px); left: 50%; transform: translateX(-50%); padding: 6px 14px; border-radius: 99px;
+  background: rgb(40 26 0 / .78); color: #ffd98a; font: 700 14px/1.2 "Nunito", system-ui, sans-serif; letter-spacing: .02em; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 2px 14px rgb(255 170 30 / .35); }
+.wrap-pill b { font-family: "Fredoka", system-ui, sans-serif; font-variant-numeric: tabular-nums; color: #fff; margin-left: 4px; }
+.wrap-up.last .wrap-pill { background: rgb(120 60 0 / .9); color: #fff; }
+@keyframes wrapPulse { 0%, 100% { opacity: .55 } 50% { opacity: 1 } }
+
+/* ============================================================ open-notes "injury" glow (10 → 20 notes) */
+.damage { position: fixed; inset: 0; z-index: 85; pointer-events: none; opacity: 0; transition: opacity 1.5s ease; --dp: 2s; --mx: 50vw; --my: 50vh; }
+.damage.on { opacity: 1; }
+.damage:not(.full) canvas { mix-blend-mode: multiply; } /* tints the screen red like a wound, rather than pink paint */
+.damage canvas { position: absolute; inset: -2%; width: 104%; height: 104%; animation: heartbeat var(--dp) ease-in-out infinite; transform-origin: 50% 50%; }
+.damage.full {
+  -webkit-mask-image: radial-gradient(circle 120px at var(--mx) var(--my), rgb(0 0 0 / .16) 0, rgb(0 0 0 / .3) 45%, #000 100%);
+          mask-image: radial-gradient(circle 120px at var(--mx) var(--my), rgb(0 0 0 / .16) 0, rgb(0 0 0 / .3) 45%, #000 100%); }
+.damage.full canvas { animation-name: heartbeatFull; }
+@keyframes heartbeatFull { 0% { transform: scale(1.012) } 12% { transform: scale(1) } 36% { transform: scale(1.004) } 70%, 100% { transform: scale(1.012) } }
+/* at full coverage the pulse is a darker throb over solid red */
+.damage.full::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgb(70 0 0 / .15), rgb(40 0 0 / .75)); animation: throb var(--dp) ease-in-out infinite; }
+@keyframes throb { 0% { opacity: .15 } 12% { opacity: .9 } 24% { opacity: .35 } 36% { opacity: .75 } 70%, 100% { opacity: .15 } }
+/* a double beat, like a heartbeat: thump-thump … pause */
+@keyframes heartbeat { 0% { opacity: .72; transform: scale(1.015) } 12% { opacity: 1; transform: scale(1) } 24% { opacity: .82 } 36% { opacity: .97; transform: scale(1.005) } 70%, 100% { opacity: .72; transform: scale(1.015) } }
+@media (prefers-reduced-motion: reduce) { .damage canvas, .wrap-glow { animation: none; } }

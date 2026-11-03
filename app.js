@@ -23,8 +23,19 @@ let range = { start: state.settings.dayStart, end: state.settings.dayEnd };
 
 const persist = () => save(K.state, state);
 // Privacy blur (per device, never synced): hides every dollar amount and money word.
-let privacy = (() => { try { return localStorage.getItem("rvu.privacy") === "1"; } catch { return false; } })();
+// Clinic hours (Mon–Fri 8 AM–5 PM): blurred by default; double-tapping the RVU logo peeks for a few seconds.
+// Outside clinic hours: clear by default; double-tap toggles the blur until clinic hours start again.
+const PEEK_MS = 6000;
+const clinicHours = (d = new Date()) => { const w = d.getDay(), m = d.getHours() * 60 + d.getMinutes(); return w >= 1 && w <= 5 && m >= 480 && m < 1020; };
+let peekUntil = 0, offHoursBlur = false, wasClinic = clinicHours(), privacy = wasClinic;
 const applyPrivacy = () => { document.documentElement.classList.toggle("privacy", privacy); FX.setPrivacy?.(privacy); };
+function checkPrivacy() {
+  const clinic = clinicHours();
+  if (clinic !== wasClinic) { wasClinic = clinic; offHoursBlur = false; peekUntil = 0; }
+  const want = clinic ? Date.now() >= peekUntil : offHoursBlur;
+  if (want !== privacy) { privacy = want; applyPrivacy(); }
+}
+setInterval(checkPrivacy, 1000);
 let lastBrandTap = 0, lastBrandEvent = 0, brandBlockUntil = 0;
 const persistUi = () => save(K.ui, { page: ui.page, view: ui.view, zoom: ui.zoom });
 /* calendar zoom (pinch on phone/iPad, pinch or Ctrl+scroll on a trackpad, + / − keys) */
@@ -114,6 +125,7 @@ function allOpenNotes() {
   return { n, oldest };
 }
 function updateOpenBadge(open = allOpenNotes()) {
+  setDamage(open.n);
   const b = $("#openBadge"); if (!b) return;
   b.hidden = !open.n; b.textContent = open.n > 99 ? "99+" : String(open.n);
 }
@@ -1066,6 +1078,100 @@ function openLogSheet(role, date = todayStr()) {
   };
 }
 
+/* ================================================================ ambient warnings */
+// Both layers sit over the whole app and ignore taps/clicks. Their textures are drawn once (and only redrawn
+// when the level changes); the pulsing is a plain opacity animation the browser handles cheaply.
+
+// --- Wrap-up: last 5 minutes of the visit in progress -> a warm glow creeping in from the edges.
+const WRAP_MS = 5 * 60000;
+function currentWrapUp() {
+  const today = todayStr();
+  if (C.isDayOff(state, today)) return null;
+  const now = Date.now(); let best = null;
+  for (const s of C.resolveDay(state, today)) {
+    if (!C.isPatient(s) || s.status === "canceled" || s.status === "noshow") continue;
+    const left = slotEndMs(today, s) - now;
+    if (left > 0 && left <= WRAP_MS && (!best || left < best.left)) best = { left, s };
+  }
+  return best;
+}
+function wrapUpTick() {
+  const el = $("#wrapUp"); if (!el) return;
+  const w = currentWrapUp();
+  if (!w) { el.classList.remove("on", "last"); return; }
+  const k = 1 - w.left / WRAP_MS; // 0 at five minutes left → 1 at the end
+  el.style.setProperty("--w", k.toFixed(3));
+  el.style.setProperty("--wp", `${(3.2 - 2 * k).toFixed(2)}s`);
+  const sec = Math.ceil(w.left / 1000);
+  $(".wrap-pill", el).innerHTML = `Wrap up <b>${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}</b>`;
+  el.classList.toggle("last", w.left <= 60000);
+  el.classList.add("on");
+}
+setInterval(wrapUpTick, 1000);
+
+// --- Open notes: from 10 open notes a red, pulsing "injury" glow starts at the edges; by 20 it covers the
+// screen. At 20+ it's thick enough that only a small clearing around the pointer/finger stays readable.
+const DMG_START = 10, DMG_FULL = 20;
+let dmgLevel = -1, dmgField = null;
+function dmgNoiseField(w, h) {
+  // smooth fractal noise, built once: lumpy, uneven edges instead of a perfect vignette
+  const rnd = (x, y, o) => { const n = Math.sin(x * 127.1 + y * 311.7 + o * 74.7) * 43758.5453; return n - Math.floor(n); };
+  const vnoise = (x, y, o) => { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const a = rnd(xi, yi, o), b = rnd(xi + 1, yi, o), c = rnd(xi, yi + 1, o), d = rnd(xi + 1, yi + 1, o);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; };
+  const f = new Float32Array(w * h), mottle = new Float32Array(w * h), seed = Math.random() * 100;
+  const fbm = (x, y, o, oct) => { let n = 0, amp = 0.5, fr = 1, tot = 0; for (let i = 0; i < oct; i++) { n += amp * vnoise(x * fr, y * fr, o + i); tot += amp; amp *= 0.5; fr *= 2.03; } return n / tot; };
+  const sx = 4 / w, sy = 4 / h * (h / w) * 1.5;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    f[y * w + x] = fbm(x * sx, y * sy, seed, 5);                       // lumpy edge
+    mottle[y * w + x] = fbm(x * sx * 2.6 + 50, y * sy * 2.6 + 50, seed + 20, 4); // darker blood clouds
+  }
+  return { w, h, f, mottle };
+}
+function drawDamage(cv, L) {
+  const w = cv.width, h = cv.height;
+  if (!dmgField || dmgField.w !== w) dmgField = dmgNoiseField(w, h);
+  const ctx = cv.getContext("2d"), img = ctx.createImageData(w, h), px = img.data;
+  const reach = 0.1 + L * 1.1;            // how far in from the edges the red has crept
+  const maxA = 0.5 + L * 0.42;            // faint at 10 notes → near-opaque at 20
+  const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const dx = (x / (w - 1)) * 2 - 1, dy = (y / (h - 1)) * 2 - 1;
+    const edge = Math.max(Math.abs(dx), Math.abs(dy)) * 0.5 + Math.hypot(dx, dy) * 0.5 / 1.2; // ~1 at the rim, 0 centre
+    const i = y * w + x, n = dmgField.f[i], m = dmgField.mottle[i];
+    const depth = (1 - edge) + (n - 0.5) * 0.7;   // uneven, cloudy front
+    let a = ss(0, 0.32, reach - depth) * maxA;
+    if (L >= 1) a = 1;
+    // deep crimson, darker toward the rim and in mottled clouds
+    const dark = Math.min(1, ss(0.45, 0.8, m) * 0.7 + ss(0.3, 1, edge) * 0.35);
+    const o = i * 4;
+    px[o] = 205 - dark * 120; px[o + 1] = 8 - dark * 8; px[o + 2] = 12 - dark * 10;
+    px[o + 3] = Math.round(a * 255);
+  }
+  ctx.putImageData(img, 0, 0);
+}
+function setDamage(n) {
+  const el = $("#damage"); if (!el) return;
+  const L = n < DMG_START ? -1 : Math.min(1, (n - DMG_START) / (DMG_FULL - DMG_START));
+  const q = L < 0 ? -1 : Math.round(L * 20) / 20;
+  if (q === dmgLevel) return;
+  dmgLevel = q;
+  el.classList.toggle("on", q >= 0);
+  el.classList.toggle("full", q >= 1);
+  if (q < 0) return;
+  el.style.setProperty("--dp", `${(2.1 - q * 0.9).toFixed(2)}s`);
+  drawDamage($("canvas", el), q);
+}
+// the clearing around the pointer / finger (only matters at full coverage)
+{
+  let raf = 0, mx = innerWidth / 2, my = innerHeight / 2;
+  const put = () => { raf = 0; const el = $("#damage"); if (el) { el.style.setProperty("--mx", `${mx}px`); el.style.setProperty("--my", `${my}px`); } };
+  const move = (x, y) => { mx = x; my = y; if (!raf && $("#damage")?.classList.contains("full")) raf = requestAnimationFrame(put); };
+  addEventListener("pointermove", (e) => move(e.clientX, e.clientY), { passive: true });
+  addEventListener("pointerdown", (e) => move(e.clientX, e.clientY), { passive: true });
+  addEventListener("touchmove", (e) => { const t = e.touches[0]; if (t) move(t.clientX, t.clientY); }, { passive: true });
+}
+
 /* ================================================================ progress toast */
 let progTimer;
 function showProgress(date, before, after) {
@@ -1910,9 +2016,10 @@ document.addEventListener("click", (e) => {
     if (ui.page !== "calendar") { brandBlockUntil = now + 700; lastBrandTap = 0; go("calendar"); return; }
     if (now < brandBlockUntil) { brandBlockUntil = now + 700; return; } // still part of the tap that switched tabs
     if (lastBrandTap && now - lastBrandTap < 450) {
-      lastBrandTap = 0; privacy = !privacy;
-      try { localStorage.setItem("rvu.privacy", privacy ? "1" : "0"); } catch { /* private mode */ }
-      applyPrivacy(); buzz(12);
+      lastBrandTap = 0;
+      if (clinicHours()) peekUntil = privacy ? Date.now() + PEEK_MS : 0; // peek, or re-hide early
+      else offHoursBlur = !offHoursBlur;
+      checkPrivacy(); buzz(12);
       return;
     }
     lastBrandTap = now;
@@ -2067,4 +2174,4 @@ render();
 pomoUi();
 syncNow();
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
-window.__rvu = { state: () => state, hist: () => hist, C, FX }; // handy for debugging
+window.__rvu = { state: () => state, hist: () => hist, C, FX, damage: setDamage, wrapUp: wrapUpTick }; // handy for debugging
