@@ -1258,6 +1258,23 @@ function billedLive() {
   return out;
 }
 
+// stacked 99214 (bottom) / 99215 (top) bars per period, labelled with the 99215 share
+function codeSplitChart(rows, labelOf, h = 170) {
+  const bw = rows.length > 24 ? 30 : 44, w = Math.max(300, rows.length * bw), max = Math.max(...rows.map((r) => r.c214 + r.c215), 1);
+  const every = bw >= 40 ? 1 : Math.ceil(rows.length / Math.max(1, Math.floor(w / 46)));
+  let g = "";
+  rows.forEach((r, i) => {
+    const tot = r.c214 + r.c215, x = i * bw + bw * 0.14, bwid = bw * 0.72, cx = x + bw * 0.36, base = h - 20, scale = (h - 44) / max;
+    const h214 = r.c214 * scale, h215 = r.c215 * scale, pct = tot ? Math.round((r.c215 / tot) * 100) : 0, lab = labelOf(r);
+    g += `<g><title>${esc(lab)}: 99214 ${r.c214} · 99215 ${r.c215}${tot ? ` (${pct}% 99215)` : ""}</title>`;
+    if (h214) g += `<rect x="${x}" y="${base - h214}" width="${bwid}" height="${h214}" rx="4" class="s214"></rect>`;
+    if (h215) g += `<rect x="${x}" y="${base - h214 - h215}" width="${bwid}" height="${h215}" rx="4" class="s215"></rect>`;
+    g += `</g>`;
+    if (tot && bw >= 40) g += `<text x="${cx}" y="${base - h214 - h215 - 5}" text-anchor="middle">${pct}%</text>`;
+    if (lab && i % every === 0) g += `<text x="${cx}" y="${h - 5}" text-anchor="middle">${esc(lab)}</text>`;
+  });
+  return `<div style="overflow-x:auto"><svg class="chart" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="width:${w}px;max-width:none">${g}</svg></div>`;
+}
 function barChart(values, labels, { h = 160, color = "var(--primary)", fmt = (v) => r1(v), highlight = -1 } = {}) {
   // fixed-width bars so text never stretches; the card scrolls sideways when there are many
   const bw = values.length > 24 ? 30 : 44, w = Math.max(300, values.length * bw), max = Math.max(...values, 0.0001);
@@ -1592,13 +1609,14 @@ function reportRows() {
     const s = stats(d);
     if (!s.seen && !s.noshow && !s.canceled && !s.off) continue;
     const [key, label] = groupKey(rep.group, d);
-    const r = rows.get(key) || { key, label, days: 0, seen: 0, np: 0, fu: 0, th: 0, cx: 0, cxKnown: false, ns: 0, nsKnown: false, rvu: 0, income: 0, incomeKnown: false, incomeMissing: false, months: new Set(), off: 0 };
+    const r = rows.get(key) || { key, label, days: 0, seen: 0, np: 0, fu: 0, th: 0, cx: 0, cxKnown: false, ns: 0, nsKnown: false, rvu: 0, income: 0, incomeKnown: false, incomeMissing: false, months: new Set(), off: 0, c214: 0, c215: 0 };
     if (s.off) r.off++;
     r.days += s.working ? 1 : 0; r.seen += s.seen; r.rvu += s.rvu;
     if (s.working) r.months.add(d.slice(0, 7));
     r.np += (s.codes["90792"] || 0) + (s.codes["99205"] || 0);
     r.fu += ["99212", "99213", "99214", "99215"].reduce((t, c) => t + (s.codes[c] || 0), 0);
     r.th += ["90832", "90834", "90837", "90846", "90847"].reduce((t, c) => t + (s.codes[c] || 0), 0);
+    r.c214 += s.codes["99214"] || 0; r.c215 += s.codes["99215"] || 0;
     if (s.canceled != null) { r.cx += s.canceled; r.cxKnown = true; }
     if (s.noshow != null) { r.ns += s.noshow; r.nsKnown = r.nsKnown || s.source === "live" || d >= "2022-12-01"; }
     const rate = C.dollarRate(state.settings, C.yearOf(d));
@@ -1611,7 +1629,8 @@ function renderReports() {
   const years = [...new Set(allDatesForReports().map((d) => d.slice(0, 4)))].sort();
   if (rep.year !== "all" && !years.includes(rep.year)) rep.year = years[years.length - 1];
   const rows = reportRows();
-  const T = rows.reduce((t, r) => ({ days: t.days + r.days, seen: t.seen + r.seen, np: t.np + r.np, fu: t.fu + r.fu, th: t.th + r.th, cx: t.cx + r.cx, ns: t.ns + r.ns, rvu: t.rvu + r.rvu, income: t.income + r.income, months: new Set([...t.months, ...r.months]), incomeKnown: t.incomeKnown || r.incomeKnown }), { days: 0, seen: 0, np: 0, fu: 0, th: 0, cx: 0, ns: 0, rvu: 0, income: 0, months: new Set(), incomeKnown: false });
+  const T = rows.reduce((t, r) => ({ c214: t.c214 + r.c214, c215: t.c215 + r.c215, days: t.days + r.days, seen: t.seen + r.seen, np: t.np + r.np, fu: t.fu + r.fu, th: t.th + r.th, cx: t.cx + r.cx, ns: t.ns + r.ns, rvu: t.rvu + r.rvu, income: t.income + r.income, months: new Set([...t.months, ...r.months]), incomeKnown: t.incomeKnown || r.incomeKnown }), { c214: 0, c215: 0, days: 0, seen: 0, np: 0, fu: 0, th: 0, cx: 0, ns: 0, rvu: 0, income: 0, months: new Set(), incomeKnown: false });
+  const pct215 = (a, b) => (a + b ? `${Math.round((b / (a + b)) * 100)}%` : "—");
   const curYear = new Date().getFullYear();
   const yr = rep.year === "all" ? curYear : Number(rep.year);
   const rate = C.dollarRate(state.settings, yr);
@@ -1619,15 +1638,27 @@ function renderReports() {
   const showMonthAvg = ["half", "season", "year"].includes(rep.group);
   const nsRate = (ns, seen) => (seen + ns ? `${Math.round((ns / (seen + ns)) * 100)}%` : "—");
   const table = `<div class="tbl-wrap"><table class="tbl"><thead><tr>
-      <th>${REPORT_GROUPS.find((g) => g[0] === rep.group)[1]}</th><th>Working days</th><th>Patients</th><th>NP</th><th>F/U</th><th>Therapy</th><th>Cancels</th><th>No-shows</th><th>No-show %</th><th>RVU</th><th>RVU / day</th>${showMonthAvg ? "<th>Avg RVU / month</th>" : ""}<th class="money">$ / RVU</th><th class="money">Income</th></tr></thead><tbody>
+      <th>${REPORT_GROUPS.find((g) => g[0] === rep.group)[1]}</th><th>Working days</th><th>Patients</th><th>NP</th><th>F/U</th><th>99214</th><th>99215</th><th>% 99215</th><th>Therapy</th><th>Cancels</th><th>No-shows</th><th>No-show %</th><th>RVU</th><th>RVU / day</th>${showMonthAvg ? "<th>Avg RVU / month</th>" : ""}<th class="money">$ / RVU</th><th class="money">Income</th></tr></thead><tbody>
       ${rows.map((r) => {
         const yrs = new Set([...r.months].map((m) => m.slice(0, 4)));
         const rateTxt = yrs.size === 1 ? (C.dollarRate(state.settings, Number([...yrs][0])) != null ? "$" + C.dollarRate(state.settings, Number([...yrs][0])) : "—") : yrs.size ? "mixed" : "—";
-        return `<tr><td>${esc(r.label)}${r.off && !r.days ? " 🏖️" : ""}</td><td>${r.days}</td><td>${r.seen}</td><td>${r.np}</td><td>${r.fu}</td><td>${r.th}</td><td>${r.cxKnown ? r.cx : "—"}</td><td>${r.nsKnown ? r.ns : "—"}</td><td>${r.nsKnown ? nsRate(r.ns, r.seen) : "—"}</td><td>${r2(r.rvu)}</td><td>${r.days ? r2(r.rvu / r.days) : "—"}</td>${showMonthAvg ? `<td>${r.months.size ? r2(r.rvu / r.months.size) : "—"}</td>` : ""}<td class="money">${rateTxt}</td><td class="money">${r.incomeKnown ? money(r.income) + (r.incomeMissing ? "*" : "") : "—"}</td></tr>`;
+        return `<tr><td>${esc(r.label)}${r.off && !r.days ? " 🏖️" : ""}</td><td>${r.days}</td><td>${r.seen}</td><td>${r.np}</td><td>${r.fu}</td><td>${r.c214}</td><td>${r.c215}</td><td>${pct215(r.c214, r.c215)}</td><td>${r.th}</td><td>${r.cxKnown ? r.cx : "—"}</td><td>${r.nsKnown ? r.ns : "—"}</td><td>${r.nsKnown ? nsRate(r.ns, r.seen) : "—"}</td><td>${r2(r.rvu)}</td><td>${r.days ? r2(r.rvu / r.days) : "—"}</td>${showMonthAvg ? `<td>${r.months.size ? r2(r.rvu / r.months.size) : "—"}</td>` : ""}<td class="money">${rateTxt}</td><td class="money">${r.incomeKnown ? money(r.income) + (r.incomeMissing ? "*" : "") : "—"}</td></tr>`;
       }).join("")}
-      <tr class="total"><td>Total</td><td>${T.days}</td><td>${T.seen}</td><td>${T.np}</td><td>${T.fu}</td><td>${T.th}</td><td>${T.cx}</td><td>${T.ns}</td><td>${nsRate(T.ns, T.seen)}</td><td>${r2(T.rvu)}</td><td>${T.days ? r2(T.rvu / T.days) : "—"}</td>${showMonthAvg ? `<td>${r2(avgMonth)}</td>` : ""}<td class="money"></td><td class="money">${T.incomeKnown ? money(T.income) : "—"}</td></tr>
+      <tr class="total"><td>Total</td><td>${T.days}</td><td>${T.seen}</td><td>${T.np}</td><td>${T.fu}</td><td>${T.c214}</td><td>${T.c215}</td><td>${pct215(T.c214, T.c215)}</td><td>${T.th}</td><td>${T.cx}</td><td>${T.ns}</td><td>${nsRate(T.ns, T.seen)}</td><td>${r2(T.rvu)}</td><td>${T.days ? r2(T.rvu / T.days) : "—"}</td>${showMonthAvg ? `<td>${r2(avgMonth)}</td>` : ""}<td class="money"></td><td class="money">${T.incomeKnown ? money(T.income) : "—"}</td></tr>
     </tbody></table></div>`;
   const chartRows = rows.slice(-36);
+  const periodLabel = (r) => rep.group === "month" ? C.MONTH_SHORT[Number(r.key.slice(5, 7)) - 1] + (rep.year === "all" ? " '" + r.key.slice(2, 4) : "") : rep.group === "day" ? String(Number(r.key.slice(8))) : rep.group === "week" ? r.key.slice(5).replace("-", "/") : rep.group === "season" ? (r.key.endsWith("2") ? "Sum " : "Sch ") + r.key.slice(2, 4) : rep.group === "half" ? (r.key.endsWith("1") ? "H1 " : "H2 ") + r.key.slice(2, 4) : r.label;
+  const fuTot = T.c214 + T.c215, p214 = fuTot ? (T.c214 / fuTot) * 100 : 0, p215 = fuTot ? 100 - p214 : 0;
+  const splitCard = fuTot ? `<div class="card code-split"><h3 style="margin-top:0">99214 vs 99215</h3>
+      <div class="split-bar" role="img" aria-label="99214 ${Math.round(p214)} percent, 99215 ${Math.round(p215)} percent">
+        <span class="s214" style="width:${p214}%"></span><span class="s215" style="width:${p215}%"></span></div>
+      <div class="split-legend">
+        <div><i class="s214"></i><b>99214</b> ${T.c214.toLocaleString()} <em>${Math.round(p214)}%</em></div>
+        <div><i class="s215"></i><b>99215</b> ${T.c215.toLocaleString()} <em>${Math.round(p215)}%</em></div>
+        <div class="muted">${fuTot.toLocaleString()} total · ${Math.round((fuTot / Math.max(1, T.seen)) * 100)}% of all visits</div>
+      </div>
+      ${chartRows.filter((r) => r.c214 + r.c215).length > 1 ? `<h3>Share billed as 99215</h3>${codeSplitChart(chartRows, periodLabel)}` : ""}
+    </div>` : "";
   return `<div class="page">
     <h2>Reports</h2>
     <div class="controls">
@@ -1643,6 +1674,7 @@ function renderReports() {
       ${rate != null && rep.year !== "all" ? `<div class="kpi"><small>Annual pace ${yr}</small><b class="money">${money(avgMonth * 12 * rate)}</b><em class="money">avg month × 12 × $${rate}</em></div>` : ""}
     </div>
     ${chartRows.length > 1 ? `<div class="card"><h3 style="margin-top:0">RVU by ${REPORT_GROUPS.find((g) => g[0] === rep.group)[1].toLowerCase()}</h3>${barChart(chartRows.map((r) => r.rvu), chartRows.map((r) => rep.group === "month" ? C.MONTH_SHORT[Number(r.key.slice(5, 7)) - 1] + (rep.year === "all" ? " '" + r.key.slice(2, 4) : "") : rep.group === "day" ? String(Number(r.key.slice(8))) : rep.group === "week" ? r.key.slice(5).replace("-", "/") : rep.group === "season" ? (r.key.endsWith("2") ? "Sum " : "Sch ") + r.key.slice(2, 4) : rep.group === "half" ? (r.key.endsWith("1") ? "H1 " : "H2 ") + r.key.slice(2, 4) : r.label), { fmt: (v) => Math.round(v) })}</div>` : ""}
+    ${splitCard}
     ${table}
     <p class="help">Imported years count "X" days as days off and don't include cancellations (the spreadsheet didn't track them). No-shows were tracked from Dec 2022 on. <span class="money">Income uses each year's $/RVU rate (Settings → Billing).${rows.some((r) => r.incomeMissing) ? " * Some days in this row have no rate on file." : ""}</span></p>
   </div>`;

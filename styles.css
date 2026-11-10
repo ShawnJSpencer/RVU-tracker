@@ -586,3 +586,12 @@ html.privacy th.money { text-shadow: 0 0 8px var(--ink-soft); }
 /* a double beat, like a heartbeat: thump-thump … pause */
 @keyframes heartbeat { 0% { opacity: .72; transform: scale(1.015) } 12% { opacity: 1; transform: scale(1) } 24% { opacity: .82 } 36% { opacity: .97; transform: scale(1.005) } 70%, 100% { opacity: .72; transform: scale(1.015) } }
 @media (prefers-reduced-motion: reduce) { .damage canvas, .wrap-glow { animation: none; } }
+
+/* ============================================================ 99214 vs 99215 */
+.code-split .split-bar { display: flex; height: 22px; border-radius: 11px; overflow: hidden; background: var(--line); }
+.code-split .split-bar span { display: block; height: 100%; transition: width .4s ease; }
+.code-split .s214 { background: var(--fu); fill: var(--fu); }
+.code-split .s215 { background: var(--primary); fill: var(--primary); }
+.code-split .split-legend { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 10px 0 4px; align-items: baseline; }
+.code-split .split-legend i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.code-split .split-legend em { font-style: normal; font-weight: 800; margin-left: 4px; }
