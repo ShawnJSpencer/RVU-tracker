@@ -968,12 +968,36 @@ function finishNote(date, s, codes, anchorEl) {
   closeSheet(); render();
   if (wasBilled) { toast("Codes updated"); return; }
   const after = stats(date);
+  moneyPop(date, after.rvu - before.rvu, anchorEl);
   const el = anchorEl && document.body.contains(anchorEl) ? anchorEl : $(`.slot[data-id="${CSS.escape(s.id)}"]`);
   const r = el?.getBoundingClientRect();
   FX.celebrateNote(r ? r.left + r.width / 2 : innerWidth / 2, r ? r.top + r.height / 2 : innerHeight / 2);
   showProgress(date, before, after);
   if (after.expected > 0 && after.billed >= after.expected && before.billed < before.expected) setTimeout(() => FX.celebrateDay(), 1300);
   pomoNoteDone();
+}
+
+// Video-game style "+$97" that floats up off the "earned" total when a note is finished (only while money is showing)
+function moneyPop(date, dRvu, fallbackEl) {
+  if (privacy || !(dRvu > 0)) return;
+  const rate = C.dollarRate(state.settings, C.yearOf(date));
+  if (rate == null) return;
+  const amt = Math.round(dRvu * rate);
+  if (!amt) return;
+  const vis = (e) => { const r = e?.getBoundingClientRect(); return r && r.width && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth ? r : null; };
+  const stat = $("#daybar .stat.money");
+  const r = vis(stat) || vis(fallbackEl) || { left: innerWidth / 2 - 40, width: 80, top: innerHeight * 0.3, bottom: innerHeight * 0.3 };
+  const big = amt >= 200;
+  const el = document.createElement("div");
+  el.className = `money-pop${big ? " crit" : ""}`;
+  el.textContent = `+$${amt.toLocaleString()}`;
+  el.style.left = `${r.left + r.width / 2 + (Math.random() * 24 - 12)}px`;
+  el.style.top = `${r.top + 4}px`;
+  el.style.setProperty("--drift", `${Math.round(Math.random() * 36 - 18)}px`);
+  document.body.appendChild(el);
+  el.addEventListener("animationend", () => el.remove(), { once: true });
+  setTimeout(() => el.remove(), 2600);
+  if (stat) { stat.classList.remove("cha-ching"); void stat.offsetWidth; stat.classList.add("cha-ching"); }
 }
 
 // ---- non-patient sheet (meetings, MD/APD time, blocks)

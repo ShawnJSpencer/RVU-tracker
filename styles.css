@@ -595,3 +595,30 @@ html.privacy th.money { text-shadow: 0 0 8px var(--ink-soft); }
 .code-split .split-legend { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 10px 0 4px; align-items: baseline; }
 .code-split .split-legend i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
 .code-split .split-legend em { font-style: normal; font-weight: 800; margin-left: 4px; }
+
+/* ============================================================ "+$97" damage-number pop on finishing a note */
+.money-pop { position: fixed; z-index: 95; pointer-events: none; transform: translate(-50%, 0); white-space: nowrap;
+  font: 800 30px/1 "Fredoka", "Nunito", system-ui, sans-serif; letter-spacing: .01em; color: #3ddc5c;
+  -webkit-text-stroke: 1.5px #0b4d1a; paint-order: stroke fill;
+  text-shadow: 0 2px 0 #0b4d1a, 0 0 14px rgb(61 220 92 / .55), 0 4px 10px rgb(0 0 0 / .35);
+  animation: moneyPop 1.6s cubic-bezier(.2, .7, .3, 1) forwards; }
+.money-pop.crit { font-size: 40px; color: #6dff7f; animation-duration: 1.9s; }
+@keyframes moneyPop {
+  0%   { opacity: 0; transform: translate(-50%, 6px) scale(.4); }
+  12%  { opacity: 1; transform: translate(-50%, -18px) scale(1.35); }
+  24%  { transform: translate(-50%, -26px) scale(1); }
+  70%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--drift, 0px)), -95px) scale(.92); }
+}
+.money-pop.crit { animation-name: moneyCrit; }
+@keyframes moneyCrit {
+  0%   { opacity: 0; transform: translate(-50%, 6px) scale(.4) rotate(0); }
+  10%  { opacity: 1; transform: translate(-50%, -20px) scale(1.55) rotate(-4deg); }
+  16%  { transform: translate(-50%, -24px) scale(1.2) rotate(3deg); }
+  26%  { transform: translate(-50%, -30px) scale(1.08) rotate(0); }
+  72%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--drift, 0px)), -110px) scale(.95); }
+}
+.stat.money.cha-ching { animation: chaChing .45s ease; }
+@keyframes chaChing { 0% { transform: scale(1) } 35% { transform: scale(1.12); box-shadow: 0 0 0 2px #3ddc5c, 0 0 18px rgb(61 220 92 / .5) } 100% { transform: scale(1) } }
+@media (prefers-reduced-motion: reduce) { .money-pop, .money-pop.crit { animation: moneyFade 1.4s forwards; } @keyframes moneyFade { 0%, 70% { opacity: 1 } 100% { opacity: 0 } } }
