@@ -209,6 +209,7 @@ function render() {
   else if (ui.page === "insights") main.innerHTML = renderInsights();
   else if (ui.page === "settings") main.innerHTML = renderSettings();
   else if (ui.page === "inbox") main.innerHTML = renderInbox();
+  else if (ui.page === "cme") main.innerHTML = renderCme();
   updateSyncDot();
 }
 
@@ -1099,6 +1100,167 @@ function openLogSheet(role, date = todayStr()) {
     const d = $("#lgDate").value || date;
     const s = { id: uid(d), type: role, start: Number($("#lgStart").value), dur: Number($("#lgDur").value), status: "scheduled", comment: $("#lgText").value.trim() };
     putSlot(d, s); closeSheet(); render(); toast(`Logged ${C.fmtDuration(s.dur)} of ${role} time`);
+  };
+}
+
+/* ================================================================ CME */
+// state.cme = { entries: { id: {…activity, updatedAt, deleted?} }, cfg: { blockStart, certs, oneTime:{mate,ps}, updatedAt } }
+// Requirements (Nov 2026): ABPN continuing certification per 3-year block — 90 Category 1 CME (16 of them
+// self-assessment, or satisfied by article exams), 1 PIP activity, 20 article exams per certification, and a
+// one-time patient-safety activity. Utah DOPL DO license (renews May 31 of even years) — 40 hours per 2-year
+// cycle, ≥34 Category 1, 3.5 h controlled-substance prescribing, one 0.5 h suicide-prevention course.
+// DEA MATE Act — one-time 8 hours on substance use disorders.
+const CME_TAGS = [
+  ["sa", "Self-assessment (SA-CME)"],
+  ["pip", "PIP / improvement in practice"],
+  ["ps", "Patient safety"],
+  ["cs", "Controlled-substance prescribing"],
+  ["suicide", "Suicide prevention"],
+  ["sud", "Substance use disorders (DEA MATE)"],
+  ["article", "ABPN article exams"],
+];
+const CME_CAT = { 1: "Category 1", 2: "Category 2", 0: "No CME credit" };
+const cmeStore = () => (state.cme ||= { entries: {}, cfg: { blockStart: new Date().getFullYear(), certs: 2, oneTime: {}, updatedAt: 0 } });
+const cmeCfg = () => { const c = cmeStore().cfg ||= { blockStart: new Date().getFullYear(), certs: 2, oneTime: {}, updatedAt: 0 }; c.oneTime ||= {}; return c; };
+const cmeList = () => Object.values(cmeStore().entries).filter((e) => e && !e.deleted).sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.updatedAt || 0) - (a.updatedAt || 0));
+function cmePut(e) { cmeStore().entries[e.id] = { ...e, updatedAt: Date.now() }; changed(); }
+function cmeCfgSet(patch) { Object.assign(cmeCfg(), patch, { updatedAt: Date.now() }); changed(); }
+// Utah DO licenses renew May 31 of even years: the cycle runs Jun 1 (even year) → May 31 (next even year)
+function doplCycle(today = todayStr()) {
+  const y = Number(today.slice(0, 4)), endY = y % 2 === 0 && today <= `${y}-05-31` ? y : y % 2 === 0 ? y + 2 : y + 1;
+  return { start: `${endY - 2}-06-01`, end: `${endY}-05-31` };
+}
+function cmeTotals(from, to) {
+  const t = { all: 0, cat1: 0, articles: 0, pip: 0, ps: 0 }; CME_TAGS.forEach(([k]) => { if (!(k in t)) t[k] = 0; });
+  for (const e of cmeList()) {
+    if (from && e.date < from || to && e.date > to) continue;
+    const cr = Number(e.credits) || 0, cat = Number(e.cat ?? 1);
+    if (cat) t.all += cr; if (cat === 1) t.cat1 += cr;
+    for (const k of e.tags || []) {
+      if (k === "article") t.articles += Number(e.articles) || 0;
+      else if (k === "pip" || k === "ps") t[k] += 1;
+      else t[k] += cr;
+    }
+  }
+  return t;
+}
+const fmtCr = (n) => (Math.round(n * 100) / 100).toLocaleString();
+function cmeBar(label, have, need, { unit = "credits", note = "", done = have >= need } = {}) {
+  const pct = Math.min(100, need ? (have / need) * 100 : 0);
+  return `<div class="cme-req ${done ? "met" : ""}">
+    <div class="cme-req-top"><span>${label}</span><b>${done ? "✓ " : ""}${fmtCr(have)} / ${fmtCr(need)} <small>${unit}</small></b></div>
+    <div class="cme-track"><span style="width:${done ? 100 : pct}%"></span></div>${note ? `<div class="cme-note">${note}</div>` : ""}</div>`;
+}
+function renderCme() {
+  const today = todayStr(), yr = today.slice(0, 4), cfg = cmeCfg(), list = cmeList();
+  const year = cmeTotals(`${yr}-01-01`, `${yr}-12-31`);
+  const bs = Number(cfg.blockStart) || Number(yr), be = bs + 2;
+  const blk = cmeTotals(`${bs}-01-01`, `${be}-12-31`);
+  const artNeed = 20 * (Number(cfg.certs) || 1), saByArticles = blk.articles >= artNeed;
+  const cyc = doplCycle(today), dopl = cmeTotals(cyc.start, cyc.end);
+  const daysLeft = Math.round((new Date(cyc.end + "T12:00") - new Date(today + "T12:00")) / 864e5);
+  const allTime = cmeTotals();
+  const ot = cfg.oneTime;
+  const mateDone = !!ot.mate?.done || allTime.sud >= 8, psDone = !!ot.ps?.done || allTime.ps >= 1;
+  const tagChips = (e) => (e.tags || []).map((k) => `<span class="cme-tag t-${k}">${esc((CME_TAGS.find((x) => x[0] === k) || [k, k])[1].replace(/ \(.*\)/, ""))}${k === "article" && e.articles ? ` ×${e.articles}` : ""}</span>`).join("");
+  let lastYear = "";
+  const rows = list.map((e) => {
+    const y = (e.date || "").slice(0, 4), head = y !== lastYear ? `<div class="cme-year">${y || "No date"} <span class="muted">${fmtCr(cmeTotals(`${y}-01-01`, `${y}-12-31`).all)} credits</span></div>` : "";
+    lastYear = y;
+    return `${head}<button class="cme-row" data-cmeedit="${esc(e.id)}">
+      <span class="cme-when">${e.date ? C.fmtUsDate(e.date) : "—"}</span>
+      <span class="cme-what"><b>${esc(e.title || "Untitled")}</b><small>${esc([e.provider, e.location].filter(Boolean).join(" · "))}</small><span class="cme-tags">${tagChips(e)}</span></span>
+      <span class="cme-cr"><b>${fmtCr(Number(e.credits) || 0)}</b><small>${CME_CAT[Number(e.cat ?? 1)]}</small></span></button>`;
+  }).join("");
+  const oneTime = (key, icon, title, rule, done, auto) => {
+    const r = ot[key] || {};
+    return done ? `<button class="cme-once done" data-onetime="${key}"><span>✓ ${icon} <b>${title}</b></span><small>${r.done ? `Done${r.date ? ` ${C.fmtUsDate(r.date)}` : ""}${r.where ? ` · ${esc(r.where)}` : ""}` : auto} — nothing more to do, ever.</small></button>`
+      : `<button class="cme-once" data-onetime="${key}"><span>${icon} <b>${title}</b> <em>not recorded yet</em></span><small>${rule}</small><span class="btn sm">Record it</span></button>`;
+  };
+  return `
+  <div class="card cme-head">
+    <div><h3 style="margin:0">🎓 ${yr} CME</h3><div class="muted">About 30 a year keeps you on pace for ABPN's 90 per block.</div></div>
+    <button class="btn primary" data-cmeadd="1">+ Add CME</button>
+    ${cmeBar(`This year`, year.all, 30, { note: year.cat1 < year.all ? `${fmtCr(year.cat1)} of these are Category 1` : "" })}
+  </div>
+  <div class="cme-grid">
+    <div class="card"><h3 style="margin-top:0">ABPN certification <span class="muted">${bs}–${be} block</span></h3>
+      ${cmeBar("Category 1 CME", blk.cat1, 90, { note: `≈30 a year · ${be - Number(yr) >= 0 ? `${be - Number(yr) + 1} year${be - Number(yr) ? "s" : ""} left in this block` : "block ended — update the start year below"}` })}
+      ${cmeBar("Self-assessment CME", saByArticles ? 16 : blk.sa, 16, { done: saByArticles || blk.sa >= 16, note: saByArticles ? "Covered by your article exams this block" : "Or: finish your article exams this block" })}
+      ${cmeBar("PIP activity", blk.pip, 1, { unit: "activity", note: "Chart-review (clinical) or feedback module" })}
+      ${cmeBar("Article exams (ABCC)", blk.articles, artNeed, { unit: "articles", note: `20 per certification × ${cfg.certs || 1}` })}
+    </div>
+    <div class="card"><h3 style="margin-top:0">Utah DOPL license <span class="muted">due ${C.fmtUsDate(cyc.end)}</span></h3>
+      ${cmeBar("Total CME", dopl.all, 40, { unit: "hours", note: `Cycle ${C.fmtUsDate(cyc.start)} – ${C.fmtUsDate(cyc.end)} · ${daysLeft} days left` })}
+      ${cmeBar("Category 1", dopl.cat1, 34, { unit: "hours", note: "AOA or ACCME Category 1" })}
+      ${cmeBar("Controlled-substance prescribing", dopl.cs, 3.5, { unit: "hours", note: "DOPL-approved course, for your controlled-substance license" })}
+      ${cmeBar("Suicide prevention", dopl.suicide, 0.5, { unit: "hours", note: "One of DOPL's three 0.5-hour online courses" })}
+    </div>
+  </div>
+  <div class="card"><h3 style="margin-top:0">CME log <span class="muted">${list.length} activit${list.length === 1 ? "y" : "ies"}</span></h3>
+    ${rows || `<p class="muted">Nothing logged yet. Tap <b>+ Add CME</b> after each conference, course or article set.</p>`}
+  </div>
+  <div class="card cme-onetime"><h3 style="margin-top:0">Do once, then forget it</h3>
+    ${oneTime("mate", "💊", "DEA substance-use training (MATE Act)", "8 hours on treating opioid/substance use disorders, once — needed by your first DEA renewal after June 27, 2023. Earlier training (including old X-waiver training) counts.", mateDone, `${fmtCr(allTime.sud)} hours logged`)}
+    ${oneTime("ps", "🛡️", "ABPN patient safety activity", "One patient-safety activity, once (for diplomates whose first CC block began in 2017 or later).", psDone, "Logged in your CME")}
+  </div>
+  <div class="card"><h3 style="margin-top:0">My cycles</h3>
+    <div class="row" style="flex-wrap:wrap;gap:12px">
+      <label>ABPN block starts <select id="cmeBlock">${Array.from({ length: 9 }, (_, i) => Number(yr) - 4 + i).map((y) => `<option ${y === bs ? "selected" : ""}>${y}</option>`).join("")}</select></label>
+      <label>ABPN certifications <select id="cmeCerts"><option value="1" ${cfg.certs == 1 ? "selected" : ""}>1 (child &amp; adolescent only)</option><option value="2" ${cfg.certs == 2 ? "selected" : ""}>2 (general + child &amp; adolescent)</option></select></label>
+    </div>
+    <p class="help">Your block years are on your ABPN Physician Folio. Requirements as of Nov 2026 — ABPN continuing certification, Utah DOPL (R156-68-304), and the DEA MATE Act.</p>
+  </div>`;
+}
+function openCmeSheet(id) {
+  const e = id ? { ...cmeStore().entries[id] } : { id: uid(todayStr()).replace("~", "~cme"), date: todayStr(), cat: 1, credits: "", tags: [] };
+  const draw = () => {
+    const tags = new Set(e.tags || []);
+    openSheet(`
+      <h3>${id ? "Edit CME" : "Add CME"}</h3>
+      <div class="cme-form">
+        <label class="wide">Title / topic<input id="cTitle" value="${esc(e.title || "")}" placeholder="e.g. AACAP Annual Meeting"></label>
+        <label>Date<input id="cDate" type="date" value="${esc(e.date || "")}"></label>
+        <label>Credits<input id="cCredits" type="number" inputmode="decimal" step="0.25" min="0" value="${esc(String(e.credits ?? ""))}" placeholder="e.g. 6.5"></label>
+        <label>Provider / sponsor<input id="cProvider" value="${esc(e.provider || "")}" placeholder="e.g. AACAP, APA, UpToDate"></label>
+        <label>Location<input id="cLocation" value="${esc(e.location || "")}" placeholder="City, or Online"></label>
+        <label class="wide">Credit type<span class="seg cme-cat">${[1, 2, 0].map((c) => `<button type="button" class="${Number(e.cat ?? 1) === c ? "on" : ""}" data-ccat="${c}">${CME_CAT[c]}</button>`).join("")}</span></label>
+        <div class="wide"><div class="lbl">Also counts toward</div><div class="cme-checks">${CME_TAGS.map(([k, n]) => `<label class="check"><input type="checkbox" data-ctag="${k}" ${tags.has(k) ? "checked" : ""}> ${n}</label>`).join("")}</div></div>
+        <label ${tags.has("article") ? "" : "hidden"} id="cArtWrap">Article exams completed<input id="cArticles" type="number" min="0" step="1" value="${esc(String(e.articles ?? ""))}"></label>
+        <label class="wide">Certificate / link<input id="cCert" value="${esc(e.cert || "")}" placeholder="Where the certificate is saved"></label>
+        <label class="wide">Notes<textarea id="cNotes" rows="2">${esc(e.notes || "")}</textarea></label>
+      </div>
+      <div class="row" style="margin-top:12px;gap:8px">
+        <button class="big-done" id="cSave">Save</button>
+        ${id ? `<button class="btn" id="cDel">Delete</button>` : ""}
+      </div>`);
+    const sh = $("#sheet");
+    const grab = () => { e.title = $("#cTitle", sh).value.trim(); e.date = $("#cDate", sh).value; e.credits = Number($("#cCredits", sh).value) || 0; e.provider = $("#cProvider", sh).value.trim(); e.location = $("#cLocation", sh).value.trim(); e.cert = $("#cCert", sh).value.trim(); e.notes = $("#cNotes", sh).value.trim(); e.articles = Number($("#cArticles", sh).value) || 0; e.tags = $$("[data-ctag]", sh).filter((x) => x.checked).map((x) => x.dataset.ctag); };
+    $$("[data-ccat]", sh).forEach((b) => b.onclick = () => { grab(); e.cat = Number(b.dataset.ccat); draw(); });
+    $('[data-ctag="article"]', sh).onchange = (ev) => { $("#cArtWrap", sh).hidden = !ev.target.checked; };
+    $("#cSave", sh).onclick = () => { grab(); if (!e.title && !e.credits) { toast("Add a title or credits first"); return; } cmePut(e); closeSheet(); render(); toast(id ? "Saved" : `Added ${fmtCr(e.credits)} credit${e.credits === 1 ? "" : "s"} 🎓`); };
+    if (id) $("#cDel", sh).onclick = () => { if (!confirm("Delete this CME activity?")) return; cmePut({ ...cmeStore().entries[id], deleted: true }); closeSheet(); render(); };
+  };
+  draw();
+}
+function openOneTimeSheet(key) {
+  const r = { ...(cmeCfg().oneTime[key] || {}) };
+  const title = key === "mate" ? "💊 DEA substance-use training (MATE Act)" : "🛡️ ABPN patient safety activity";
+  openSheet(`
+    <h3>${title}</h3>
+    <div class="sub">${key === "mate" ? "One-time, 8 hours. If you can't find your certificate, retaking an 8-hour course is the simple fix — DEA only asks you to attest, but keep the certificate." : "One-time. ABPN lists approved activities in your Physician Folio."}</div>
+    <div class="cme-form">
+      <label class="wide check" style="font-weight:800"><input type="checkbox" id="oDone" ${r.done ? "checked" : ""}> I've completed this</label>
+      <label>Date completed<input id="oDate" type="date" value="${esc(r.date || "")}"></label>
+      <label>Where / course<input id="oWhere" value="${esc(r.where || "")}" placeholder="${key === "mate" ? "e.g. ASAM 8-hour course" : "e.g. APA patient safety module"}"></label>
+      <label class="wide">Certificate / notes<textarea id="oNotes" rows="2">${esc(r.notes || "")}</textarea></label>
+    </div>
+    <button class="big-done" id="oSave" style="margin-top:12px">Save</button>`);
+  const sh = $("#sheet");
+  $("#oSave", sh).onclick = () => {
+    const rec = { done: $("#oDone", sh).checked, date: $("#oDate", sh).value, where: $("#oWhere", sh).value.trim(), notes: $("#oNotes", sh).value.trim() };
+    cmeCfgSet({ oneTime: { ...cmeCfg().oneTime, [key]: rec } }); closeSheet(); render();
+    if (rec.done) FX.celebrateNote(innerWidth / 2, innerHeight / 2);
   };
 }
 
@@ -2105,6 +2267,9 @@ document.addEventListener("click", (e) => {
   const ibe = t.closest("[data-ibedit]"); if (ibe) { openIbEdit(ibe.dataset.ibedit); return; }
   if (t.closest("[data-ibadd]")) { openIbAdd(); return; }
   if (t.closest("[data-ibimport]")) { openImporter(); return; }
+  if (t.closest("[data-cmeadd]")) { openCmeSheet(); return; }
+  const ce = t.closest("[data-cmeedit]"); if (ce) { openCmeSheet(ce.dataset.cmeedit); return; }
+  const otm = t.closest("[data-onetime]"); if (otm) { openOneTimeSheet(otm.dataset.onetime); return; }
   const rg = t.closest("[data-rgroup]"); if (rg) { rep.group = rg.dataset.rgroup; if ((rep.group === "day" || rep.group === "week") && rep.year === "all") rep.year = String(new Date().getFullYear()); render(); return; }
   if (ui.page === "settings" && bindSettings(e)) return;
 });
@@ -2123,6 +2288,8 @@ document.addEventListener("touchend", (e) => {
 }, { passive: false });
 document.addEventListener("change", (e) => {
   if (e.target.id === "rYear") { rep.year = e.target.value; render(); return; }
+  if (e.target.id === "cmeBlock") { cmeCfgSet({ blockStart: Number(e.target.value) }); render(); return; }
+  if (e.target.id === "cmeCerts") { cmeCfgSet({ certs: Number(e.target.value) }); render(); return; }
   if (ui.page === "settings") onSettingsChange(e);
 });
 // hold a counter to subtract one

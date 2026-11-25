@@ -622,3 +622,42 @@ html.privacy th.money { text-shadow: 0 0 8px var(--ink-soft); }
 .stat.money.cha-ching { animation: chaChing .45s ease; }
 @keyframes chaChing { 0% { transform: scale(1) } 35% { transform: scale(1.12); box-shadow: 0 0 0 2px #3ddc5c, 0 0 18px rgb(61 220 92 / .5) } 100% { transform: scale(1) } }
 @media (prefers-reduced-motion: reduce) { .money-pop, .money-pop.crit { animation: moneyFade 1.4s forwards; } @keyframes moneyFade { 0%, 70% { opacity: 1 } 100% { opacity: 0 } } }
+
+/* ============================================================ CME */
+.cme-head { display: grid; grid-template-columns: 1fr auto; gap: 10px 14px; align-items: center; }
+.cme-head .cme-req { grid-column: 1 / -1; }
+.cme-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 12px; }
+.cme-grid h3 .muted, .card h3 .muted { font-weight: 700; font-size: 13px; margin-left: 6px; }
+.cme-req { margin: 10px 0 12px; }
+.cme-req-top { display: flex; justify-content: space-between; gap: 10px; font-weight: 800; font-size: 14px; }
+.cme-req-top b { font-family: "Fredoka", system-ui, sans-serif; font-weight: 600; white-space: nowrap; }
+.cme-req-top small { font: 700 11px "Nunito", system-ui, sans-serif; color: var(--ink-soft); }
+.cme-track { height: 10px; border-radius: 6px; background: var(--surface-2); margin-top: 5px; overflow: hidden; }
+.cme-track span { display: block; height: 100%; border-radius: 6px; background: var(--primary); transition: width .4s ease; }
+.cme-req.met .cme-track span { background: var(--md, #4caf50); }
+.cme-req.met .cme-req-top b { color: var(--md, #2e7d32); }
+.cme-note { font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
+.cme-year { margin: 14px 0 4px; font-weight: 900; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+.cme-row { display: grid; grid-template-columns: 84px 1fr auto; gap: 10px; width: 100%; text-align: left; align-items: start; padding: 10px 4px; border-top: 1px solid var(--line); background: none; color: inherit; font: inherit; cursor: pointer; }
+.cme-row:hover { background: var(--surface-2); }
+.cme-when { font-size: 13px; color: var(--ink-soft); font-weight: 700; padding-top: 2px; }
+.cme-what b { display: block; }
+.cme-what small { display: block; color: var(--ink-soft); font-size: 12px; }
+.cme-cr { text-align: right; }
+.cme-cr b { display: block; font: 600 20px/1 "Fredoka", system-ui, sans-serif; }
+.cme-cr small { font-size: 11px; color: var(--ink-soft); white-space: nowrap; }
+.cme-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.cme-tag { font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--line); }
+.cme-once { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; width: 100%; text-align: left; padding: 12px; margin-top: 8px; border-radius: 12px; border: 1.5px dashed var(--accent); background: var(--surface-2); color: inherit; font: inherit; cursor: pointer; }
+.cme-once em { font-style: normal; font-size: 12px; color: var(--accent); font-weight: 800; margin-left: 6px; }
+.cme-once small { flex-basis: 100%; color: var(--ink-soft); font-size: 12px; order: 3; }
+.cme-once.done { border: 1px solid var(--line); background: none; opacity: .75; }
+.cme-once.done small { order: 0; }
+.cme-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin-top: 10px; }
+.cme-form > label, .cme-form .lbl { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 800; color: var(--ink-soft); }
+.cme-form .wide { grid-column: 1 / -1; }
+.cme-form label.check { flex-direction: row; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); }
+.cme-form input:not([type=checkbox]), .cme-form textarea { font: inherit; font-weight: 600; color: var(--ink); }
+.cme-checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 6px 12px; }
+.cme-cat { display: flex; }
+@media (max-width: 520px) { .cme-form { grid-template-columns: 1fr; } .cme-row { grid-template-columns: 64px 1fr auto; } }

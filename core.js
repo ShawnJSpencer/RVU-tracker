@@ -289,6 +289,16 @@ export function mergeStates(a, b) {
     const x = a.counters?.[d], y = b.counters?.[d];
     out.counters[d] = !x ? y : !y ? x : (y.updatedAt || 0) > (x.updatedAt || 0) ? y : x;
   }
+  // CME: newest change wins per activity (deletes are kept as tombstones); settings newest-wins as a whole
+  if (a.cme || b.cme) {
+    const ea = a.cme?.entries || {}, eb = b.cme?.entries || {};
+    const ca = a.cme?.cfg, cb = b.cme?.cfg;
+    out.cme = { entries: {}, cfg: !ca ? cb : !cb ? ca : (cb.updatedAt || 0) > (ca.updatedAt || 0) ? cb : ca };
+    for (const id of new Set([...Object.keys(ea), ...Object.keys(eb)])) {
+      const x = ea[id], y = eb[id];
+      out.cme.entries[id] = !x ? y : !y ? x : (y.updatedAt || 0) > (x.updatedAt || 0) ? y : x;
+    }
+  }
   return out;
 }
 
