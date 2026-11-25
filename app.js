@@ -1177,7 +1177,7 @@ function renderCme() {
     return done ? `<button class="cme-once done" data-onetime="${key}"><span>✓ ${icon} <b>${title}</b></span><small>${r.done ? `Done${r.date ? ` ${C.fmtUsDate(r.date)}` : ""}${r.where ? ` · ${esc(r.where)}` : ""}` : auto} — nothing more to do, ever.</small></button>`
       : `<button class="cme-once" data-onetime="${key}"><span>${icon} <b>${title}</b> <em>not recorded yet</em></span><small>${rule}</small><span class="btn sm">Record it</span></button>`;
   };
-  return `
+  return `<div class="page">
   <div class="card cme-head">
     <div><h3 style="margin:0">🎓 ${yr} CME</h3><div class="muted">About 30 a year keeps you on pace for ABPN's 90 per block.</div></div>
     <button class="btn primary" data-cmeadd="1">+ Add CME</button>
@@ -1210,7 +1210,7 @@ function renderCme() {
       <label>ABPN certifications <select id="cmeCerts"><option value="1" ${cfg.certs == 1 ? "selected" : ""}>1 (child &amp; adolescent only)</option><option value="2" ${cfg.certs == 2 ? "selected" : ""}>2 (general + child &amp; adolescent)</option></select></label>
     </div>
     <p class="help">Your block years are on your ABPN Physician Folio. Requirements as of Nov 2026 — ABPN continuing certification, Utah DOPL (R156-68-304), and the DEA MATE Act.</p>
-  </div>`;
+  </div></div>`;
 }
 function openCmeSheet(id) {
   const e = id ? { ...cmeStore().entries[id] } : { id: uid(todayStr()).replace("~", "~cme"), date: todayStr(), cat: 1, credits: "", tags: [] };
